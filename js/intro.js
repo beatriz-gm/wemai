@@ -10,6 +10,10 @@
    rápido que a saída e a profundidade surge naturalmente, sem efeitos.
    A paisagem (imagem real) fica atrás de tudo e só aparece pelo vão.
 
+   A câmera anda num trilho: o eixo é um único ponto fixo da tela durante toda
+   a sequência. Não há rotação, inclinação, deslocamento lateral nem curvas
+   concorrentes — todos os planos seguem o mesmo progresso u.
+
    Ritmo
    A progressão da câmera é interpolada em escala logarítmica (zoom percebido
    como constante) com uma curva de início quase imperceptível e chegada longa.
@@ -70,9 +74,7 @@
   var INNER_CENTER_Y = TIP_Y - Math.sqrt(INNER_R * INNER_R - HALF_CHORD * HALF_CHORD);
   var INNER_TOP = INNER_CENTER_Y - INNER_R;
   var LOGO_WIDTH = 1445 - 327.58;          // largura desenhada da logo
-  // Centro vertical da logo: no mobile ela não tem a frase de assinatura (termina em y = 720).
-  var signatureHidden = window.matchMedia('(max-width: 767px)');
-  function logoCenterY() { return (85 + (signatureHidden.matches ? 720 : 821)) / 2; }
+  var LOGO_CENTER_Y = (85 + 821) / 2;
 
   /* --- Cena ------------------------------------------------------------------ */
   var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 }; // horizonte do mar na imagem
@@ -84,7 +86,6 @@
   var END_TOP = .035;        // topo do vão, ao final, como fração da altura da tela
   var LANDSCAPE_ZOOM = .05;  // quanto a paisagem distante cresce durante a travessia
   var NEAR_DEPTH = .14;      // quanto a água próxima está "comprimida" no início (paralaxe)
-  var CAMERA_DRIFT = 38;     // desvio lateral da câmera no meio da travessia, em unidades da logo
   var SCROLL_PORTAL_ZOOM = .22;
   var SCROLL_LANDSCAPE_ZOOM = .04;
   var SCROLL_NEAR_ZOOM = .07;
@@ -107,7 +108,7 @@
      conforme a câmera se aproxima (progresso da câmera, não do relógio). Assim o
      escurecimento acompanha a profundidade percebida e nunca acontece de repente. */
   var MATERIAL_RANGE = [.02, .62];
-  var INTERIOR_LIGHT = ['#FBF4EA', '#F4F6F8', '#EDF1F4', '#E6EBF0', '#E1E7EC', '#DEE4EA'];
+  var INTERIOR_LIGHT = ['#FCF6EE', '#F3F5F7', '#E9EEF2', '#DFE6EC', '#D6DFE7', '#D0DAE3'];
   var INTERIOR_MATERIAL = ['#F6E2C8', '#C6D1DB', '#8A9FB4', '#55708C', '#3A5672', '#304B67'];
   var FLOOR_LIGHT = ['#F1F3F5', '#E6EBEF', '#DCE3E9'];
   var FLOOR_MATERIAL = ['#8E9CAD', '#4F657D', '#2A4259'];
@@ -175,14 +176,18 @@
     var top = h * END_TOP;
     var endScale = (bottom - top) / (TIP_Y - INNER_TOP);
 
-    // Altura dos olhos (constante): um pouco acima do piso do portal,
-    // de modo que o horizonte da imagem seja o ponto de fuga final.
-    var eye = TIP_Y - (bottom - horizonY) / endScale;
-
-    // Início: a logo centralizada. O ponto de fuga parte da altura da logo e
-    // desce até o horizonte real durante a aproximação (leve inclinação da câmera).
     var startScale = Math.min(w * .62, 280) / LOGO_WIDTH;
-    var startVanish = h * .47 - (logoCenterY() - eye) * startScale;
+
+    /* Eixo da câmera (trilho). Um único ponto fixo na tela, do início ao fim:
+       tudo se expande a partir dele, sem inclinação nem deslocamento lateral.
+       axisY (unidades da logo) é a altura do eixo dentro do vão; vanishY é onde
+       ele aparece na tela. São resolvidos para que (a) a logo comece centralizada
+       e (b) o enquadramento final seja o da Home:
+         início: vanishY + (LOGO_CENTER_Y - axisY) · startScale = 0,47 · h
+         fim:    vanishY + (INNER_TOP - axisY) · endScale = top                 */
+    var startOffset = h * .47 - LOGO_CENTER_Y * startScale;
+    var axisY = (top - startOffset - INNER_TOP * endScale) / (startScale - endScale);
+    var vanishY = startOffset + axisY * startScale;
 
     var focal = endScale * CAMERA_STOP * PASSAGE_DEPTH;
     var startBack = focal / (focal / startScale + PASSAGE_DEPTH);
@@ -191,26 +196,27 @@
       w: w,
       h: h,
       horizonY: horizonY,
-      startVanish: startVanish,
-      eye: eye,
+      vanishY: vanishY,
+      axisY: axisY,
       focal: focal,
       startBack: startBack,
       endBack: endScale
     };
 
-    var origin = (w / 2) + 'px ' + horizonY + 'px';
-    landscape.style.transformOrigin = origin;
-    landscapeNear.style.transformOrigin = origin;
-    layer.style.transformOrigin = origin;
+    // A paisagem distante cresce a partir do horizonte (composição da Home preservada);
+    // no scroll, o portal continua avançando pelo mesmo eixo da câmera.
+    var horizonOrigin = (w / 2) + 'px ' + horizonY + 'px';
+    landscape.style.transformOrigin = horizonOrigin;
+    landscapeNear.style.transformOrigin = horizonOrigin;
+    layer.style.transformOrigin = (w / 2) + 'px ' + vanishY + 'px';
   }
 
   /* --- Câmera ---------------------------------------------------------------- */
 
-  // camX: deslocamento lateral da câmera (unidades da logo). O ponto de fuga fica no
-  // centro da tela, então planos mais próximos se deslocam mais: paralaxe real.
-  function placePlane(plane, scale, vanishY, camX) {
-    var tx = view.w / 2 - (ARC_X + camX) * scale;
-    var ty = vanishY - view.eye * scale;
+  // Cada plano é uma ampliação em torno do eixo: (ARC_X, axisY) fica sempre em (w/2, vanishY).
+  function placePlane(plane, scale) {
+    var tx = view.w / 2 - ARC_X * scale;
+    var ty = view.vanishY - view.axisY * scale;
     plane.setAttribute('transform',
       'matrix(' + scale.toFixed(5) + ' 0 0 ' + scale.toFixed(5) + ' ' + tx.toFixed(2) + ' ' + ty.toFixed(2) + ')');
   }
@@ -219,18 +225,15 @@
   function setCamera(u) {
     var backScale = view.startBack * Math.pow(view.endBack / view.startBack, u);
     var frontDistance = view.focal / backScale - PASSAGE_DEPTH;
-    var vanishY = view.startVanish + (view.horizonY - view.startVanish) * easeInOutSine(clamp01(u / .75));
-    // Leve arco lateral: centrada no início e no fim, deslocada no meio da travessia.
-    var camX = CAMERA_DRIFT * Math.sin(Math.PI * u);
 
-    placePlane(backPlane, backScale, vanishY, camX);
+    placePlane(backPlane, backScale);
 
     // Depois que a câmera cruza a entrada, ela fica fora de cena.
     if (frontDistance > view.focal / 200) {
       var frontScale = view.focal / frontDistance;
       frontPlane.style.display = '';
-      placePlane(frontPlane, frontScale, vanishY, camX);
-      lightInterior(frontScale / backScale, camX);
+      placePlane(frontPlane, frontScale);
+      lightInterior(frontScale / backScale);
     } else {
       frontPlane.style.display = 'none';
     }
@@ -243,16 +246,11 @@
 
   /* Iluminação do interior ao longo da profundidade.
      Em coordenadas do plano de saída, a borda de entrada é a mesma circunferência
-     ampliada k vezes a partir do ponto de vista (ARC_X + camX, eye). Um gradiente
-     radial com foco nesse ponto percorre então o interior exatamente da saída (1/k)
-     até a entrada (1). */
-  function lightInterior(k, camX) {
-    var vx = ARC_X + camX;
-    var cx = vx + (ARC_X - vx) * k;
-    var cy = view.eye + (INNER_CENTER_Y - view.eye) * k;
-    interior.setAttribute('fx', vx.toFixed(2));
-    interior.setAttribute('fy', view.eye.toFixed(2));
-    interior.setAttribute('cx', cx.toFixed(2));
+     ampliada k vezes a partir do eixo (ARC_X, axisY). Um gradiente radial com foco
+     nesse ponto percorre então o interior exatamente da saída (1/k) até a entrada (1). */
+  function lightInterior(k) {
+    var cy = view.axisY + (INNER_CENTER_Y - view.axisY) * k;
+    interior.setAttribute('fy', view.axisY.toFixed(2));
     interior.setAttribute('cy', cy.toFixed(2));
     interior.setAttribute('r', (INNER_R * k).toFixed(2));
     var exit = 1 / k;
