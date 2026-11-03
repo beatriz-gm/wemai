@@ -64,8 +64,11 @@
   <header class="site-header" data-header>
     <div class="site-header__bar">
       <a class="brand" href="#inicio" aria-label="WEMAI — voltar ao início" data-reveal style="--i:0">
-        <!-- Arquivo oficial, sem alterações: brand/wemai-logo-branco.svg -->
-        <img class="brand__logo" src="brand/wemai-logo-branco.svg" alt="" width="1257" height="876">
+        <!-- Arquivos oficiais, sem alterações: no mobile, a versão sem a frase de assinatura. -->
+        <picture>
+          <source media="(max-width: 767px)" srcset="brand/wemai-logo-branco-sem-frase.svg" width="1257" height="775">
+          <img class="brand__logo" src="brand/wemai-logo-branco.svg" alt="" width="1257" height="876">
+        </picture>
       </a>
 
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-menu" aria-label="Abrir menu" data-menu-toggle data-reveal style="--i:1">
@@ -123,15 +126,16 @@
             <defs>
               <!--
                 Profundidade do interior: o gradiente vai da borda de saída (0) até a borda de
-                entrada (1). js/intro.js recalcula círculos e stops a cada quadro.
+                entrada (1). js/intro.js recalcula círculos, posições e cores dos stops a cada
+                quadro: o interior nasce quase branco e ganha materialidade com a aproximação.
               -->
               <radialGradient id="portal-interior" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="252" fx="886.5" fy="364" data-interior>
-                <stop offset="0" stop-color="#F6E2C8"/>
-                <stop offset=".04" stop-color="#B9C6D2"/>
-                <stop offset=".2" stop-color="#5D7C99"/>
-                <stop offset=".55" stop-color="#24415F"/>
-                <stop offset=".92" stop-color="#132C46"/>
-                <stop offset="1" stop-color="#0E2439"/>
+                <stop offset="0" stop-color="#FBF4EA"/>
+                <stop offset=".04" stop-color="#F4F6F8"/>
+                <stop offset=".2" stop-color="#EDF1F4"/>
+                <stop offset=".55" stop-color="#E6EBF0"/>
+                <stop offset=".92" stop-color="#E1E7EC"/>
+                <stop offset="1" stop-color="#DEE4EA"/>
               </radialGradient>
               <!-- Luz lateral: o sol está à direita, então a parede interna esquerda recebe mais luz. -->
               <linearGradient id="portal-side" gradientUnits="userSpaceOnUse" x1="286.5" y1="0" x2="1486.5" y2="0">
@@ -140,10 +144,10 @@
                 <stop offset="1" stop-color="#061524" stop-opacity=".32"/>
               </linearGradient>
               <!-- Piso: reflexo quente junto à saída, escurecendo em direção à câmera. -->
-              <linearGradient id="portal-floor" gradientUnits="userSpaceOnUse" x1="0" y1="494.63" x2="0" y2="620">
-                <stop offset="0" stop-color="#7D8DA0"/>
-                <stop offset=".25" stop-color="#3A5068"/>
-                <stop offset="1" stop-color="#18304A"/>
+              <linearGradient id="portal-floor" gradientUnits="userSpaceOnUse" x1="0" y1="494.63" x2="0" y2="620" data-floor>
+                <stop offset="0" stop-color="#F1F3F5"/>
+                <stop offset=".25" stop-color="#E6EBEF"/>
+                <stop offset="1" stop-color="#DCE3E9"/>
               </linearGradient>
               <!-- Máscara de revelação (luminância): branco = parede, preto = vão aberto. -->
               <radialGradient id="portal-reveal" gradientUnits="userSpaceOnUse" cx="886.5" cy="390" r="300">
@@ -169,8 +173,10 @@
 
             <g data-plane="back">
               <path fill="url(#portal-interior)" fill-rule="evenodd" d="M-20000 -20000 H20000 V20000 H-20000 Z M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
-              <path fill="url(#portal-side)" fill-rule="evenodd" d="M-20000 -20000 H20000 V20000 H-20000 Z M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
+              <path fill="url(#portal-side)" fill-rule="evenodd" opacity="0" data-side d="M-20000 -20000 H20000 V20000 H-20000 Z M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
               <path fill="url(#portal-floor)" d="M-20000 494.63 H20000 V20000 H-20000 Z"/>
+              <!-- Névoa clara na saída: a paisagem aparece primeiro discreta e vai se definindo. -->
+              <path class="portal__haze" data-haze d="M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
             </g>
 
             <g data-plane="front">
@@ -193,7 +199,8 @@
                     <path d="M1154.16 720 L1231.66 578 L1245.34 578 L1322.84 720 L1309.16 720 L1238.5 590.52 L1167.84 720 Z"/>
                     <path d="M1433 578 L1445 578 L1445 720 L1433 720 Z"/>
                   </g>
-                  <g>
+                  <!-- Assinatura: oculta no mobile, onde a abertura usa wemai-logo-principal-sem-frase.svg. -->
+                  <g class="portal__signature" data-signature>
                     <path d="M492.88 790 L501.11 816.25 L511.68 790 L515.12 790 L525.69 816.25 L533.92 790 L537.28 790 L527.56 821 L524.16 821 L513.4 794.28 L502.64 821 L499.24 821 L489.52 790 Z"/>
                     <path d="M566.4 790 L593.4 790 L593.4 793.2 L569.6 793.2 L569.6 803.9 L591.24 803.9 L591.24 807.1 L569.6 807.1 L569.6 817.8 L593.4 817.8 L593.4 821 L566.4 821 Z"/>
                     <path d="M667.4 821 L667.4 790 L671.13 790 L685.9 806.8 L700.67 790 L704.4 790 L704.4 821 L701.2 821 L701.2 794.24 L685.9 811.64 L670.6 794.24 L670.6 821 Z"/>

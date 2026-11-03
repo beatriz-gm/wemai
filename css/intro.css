@@ -31,12 +31,20 @@
   display: none;
 }
 
-.portal__wall {
+.portal__wall,
+.portal__haze {
   fill: var(--white);
 }
 
 .portal__mark {
   fill: var(--navy);
+}
+
+/* Mobile: a logo da abertura corresponde a brand/wemai-logo-principal-sem-frase.svg. */
+@media (max-width: 767px) {
+  .portal__signature {
+    display: none;
+  }
 }
 
 /* --- Pular abertura ------------------------------------------------------- */

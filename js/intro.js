@@ -17,11 +17,13 @@
    Linha do tempo (ms) — cerca de 7,5 s até a interface assentar
      0    – 1400  Identidade: a logo surge e permanece intacta.
      2200 – 7200  Câmera: aproximação → revelação → travessia → chegada.
-     2700 – 3700  Wordmark e assinatura se dissolvem.
-     3500 – 4800  O vão se abre a partir do centro: paisagem e interior da passagem.
-     3500 – 4900  O arco ganha volume e a parede se ilumina.
+     2700 – 3900  Wordmark e assinatura se dissolvem.
+     2700 – 4500  Ao mesmo tempo, o vão se abre a partir do centro. O interior nasce
+                  nos tons do fundo claro, então o arco ganha profundidade sem contraste.
+     3000 – 5300  A névoa da saída se dissipa e a paisagem se define.
+     ~2900 – 5800 Materialidade (cor, sombra, luz lateral) acompanha a aproximação.
      6200         A interface da Home começa a surgir.
-   Até 3500 nada é acrescentado à logo: a parede é um plano inteiro, sem recortes,
+   Até 2700 nada é acrescentado à logo: a parede é um plano inteiro, sem recortes,
    e a tela mostra apenas o SVG original.
 
    Depois da abertura, o primeiro scroll avança a câmera mais um pouco usando
@@ -52,6 +54,9 @@
   var interiorStops = Array.prototype.map.call(interior.querySelectorAll('stop'), function (stop) {
     return { el: stop, at: parseFloat(stop.getAttribute('offset')) };
   });
+  var floorStops = layer.querySelectorAll('[data-floor] stop');
+  var sideLight = layer.querySelector('[data-side]');
+  var haze = layer.querySelector('[data-haze]');
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   var playing = root.classList.contains('intro-pending');
@@ -65,7 +70,9 @@
   var INNER_CENTER_Y = TIP_Y - Math.sqrt(INNER_R * INNER_R - HALF_CHORD * HALF_CHORD);
   var INNER_TOP = INNER_CENTER_Y - INNER_R;
   var LOGO_WIDTH = 1445 - 327.58;          // largura desenhada da logo
-  var LOGO_CENTER_Y = (85 + 821) / 2;
+  // Centro vertical da logo: no mobile ela não tem a frase de assinatura (termina em y = 720).
+  var signatureHidden = window.matchMedia('(max-width: 767px)');
+  function logoCenterY() { return (85 + (signatureHidden.matches ? 720 : 821)) / 2; }
 
   /* --- Cena ------------------------------------------------------------------ */
   var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 }; // horizonte do mar na imagem
@@ -89,12 +96,21 @@
   var T = {
     markIn: [200, 1400],
     camera: [2200, 7200],
-    wordmarkOut: [2700, 3700],
-    reveal: [3500, 4800],
-    volume: [3500, 4900],
+    wordmarkOut: [2700, 3900],
+    reveal: [2700, 4500],   // o vão começa a se abrir junto com a dissolução das letras
+    haze: [3000, 5300],     // a névoa da saída se dissipa e a paisagem se define
     ui: 6200,
     imageWaitMax: 4000
   };
+
+  /* Materialidade: o interior nasce nos tons do fundo claro e ganha a cor do arco
+     conforme a câmera se aproxima (progresso da câmera, não do relógio). Assim o
+     escurecimento acompanha a profundidade percebida e nunca acontece de repente. */
+  var MATERIAL_RANGE = [.02, .62];
+  var INTERIOR_LIGHT = ['#FBF4EA', '#F4F6F8', '#EDF1F4', '#E6EBF0', '#E1E7EC', '#DEE4EA'];
+  var INTERIOR_MATERIAL = ['#F6E2C8', '#C6D1DB', '#8A9FB4', '#55708C', '#3A5672', '#304B67'];
+  var FLOOR_LIGHT = ['#F1F3F5', '#E6EBEF', '#DCE3E9'];
+  var FLOOR_MATERIAL = ['#8E9CAD', '#4F657D', '#2A4259'];
 
   var REVEAL_REACH = .3; // alcance inicial da transparência a partir do centro do vão
 
@@ -107,6 +123,22 @@
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function phase(t, range) { return clamp01((t - range[0]) / (range[1] - range[0])); }
   function easeInOutSine(x) { return -(Math.cos(Math.PI * x) - 1) / 2; }
+
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [n >> 16, (n >> 8) & 255, n & 255];
+  }
+
+  function mixColor(a, b, m) {
+    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * m) + ',' +
+      Math.round(a[1] + (b[1] - a[1]) * m) + ',' +
+      Math.round(a[2] + (b[2] - a[2]) * m) + ')';
+  }
+
+  INTERIOR_LIGHT = INTERIOR_LIGHT.map(hexToRgb);
+  INTERIOR_MATERIAL = INTERIOR_MATERIAL.map(hexToRgb);
+  FLOOR_LIGHT = FLOOR_LIGHT.map(hexToRgb);
+  FLOOR_MATERIAL = FLOOR_MATERIAL.map(hexToRgb);
 
   function cubicBezier(x1, y1, x2, y2) {
     function at(t, a, b) { return ((1 - 3 * b + 3 * a) * t + (3 * b - 6 * a)) * t * t + 3 * a * t; }
@@ -150,7 +182,7 @@
     // Início: a logo centralizada. O ponto de fuga parte da altura da logo e
     // desce até o horizonte real durante a aproximação (leve inclinação da câmera).
     var startScale = Math.min(w * .62, 280) / LOGO_WIDTH;
-    var startVanish = h * .47 - (LOGO_CENTER_Y - eye) * startScale;
+    var startVanish = h * .47 - (logoCenterY() - eye) * startScale;
 
     var focal = endScale * CAMERA_STOP * PASSAGE_DEPTH;
     var startBack = focal / (focal / startScale + PASSAGE_DEPTH);
@@ -229,9 +261,11 @@
     }
   }
 
-  function setAppearance(t) {
+  function setAppearance(t, u) {
     mark.style.opacity = easeInOutSine(phase(t, T.markIn));
     wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
+    haze.style.opacity = 1 - easeInOutSine(phase(t, T.haze));
+    setMaterial(easeInOutSine(phase(u, MATERIAL_RANGE)));
 
     // Revelação a partir do centro do vão: o centro clareia primeiro e a abertura
     // se espalha até as bordas, como luz atravessando — nunca um ponto ou contorno nítido.
@@ -242,10 +276,20 @@
       revealStops[1].setAttribute('offset', (REVEAL_REACH + (1 - REVEAL_REACH) * p).toFixed(4));
       revealStops[1].setAttribute('stop-opacity', clamp01((p - .3) / .7).toFixed(4));
     }
+  }
 
-    var volume = easeInOutSine(phase(t, T.volume));
-    shade.style.opacity = volume;
-    face.style.opacity = volume;
+  // m = 0: tudo nos tons do fundo claro; m = 1: material, luz lateral e sombras completas.
+  function setMaterial(m) {
+    var i;
+    for (i = 0; i < interiorStops.length; i++) {
+      interiorStops[i].el.setAttribute('stop-color', mixColor(INTERIOR_LIGHT[i], INTERIOR_MATERIAL[i], m));
+    }
+    for (i = 0; i < floorStops.length; i++) {
+      floorStops[i].setAttribute('stop-color', mixColor(FLOOR_LIGHT[i], FLOOR_MATERIAL[i], m));
+    }
+    sideLight.style.opacity = m;
+    shade.style.opacity = m;
+    face.style.opacity = m;
   }
 
   /* A parede só ganha o vão quando a revelação começa. Antes disso é um plano
@@ -266,7 +310,7 @@
   }
 
   function renderFinal() {
-    setAppearance(Infinity);
+    setAppearance(Infinity, 1);
     setCamera(1);
   }
 
@@ -334,8 +378,9 @@
   var revealed = false;
 
   function render(t) {
-    setAppearance(t);
-    setCamera(cameraEase(phase(t, T.camera)));
+    var u = cameraEase(phase(t, T.camera));
+    setAppearance(t, u);
+    setCamera(u);
     if (!revealed && t >= T.ui) reveal();
   }
 

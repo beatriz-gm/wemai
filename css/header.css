@@ -48,9 +48,21 @@
   padding: 8px 4px;
 }
 
+.brand picture {
+  display: block;
+}
+
 .brand__logo {
+  display: block;
   width: auto;
   height: 56px; /* o viewBox oficial inclui respiro ao redor da marca */
+}
+
+/* Mobile: versão sem a frase (brand/wemai-logo-branco-sem-frase.svg), mais compacta. */
+@media (max-width: 767px) {
+  .brand__logo {
+    height: 50px;
+  }
 }
 
 /* --- Botão de menu -------------------------------------------------------- */
