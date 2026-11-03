@@ -1,0 +1,193 @@
+/* ==========================================================================
+   WEMAI — Cabeçalho e menu (mobile)
+   ========================================================================== */
+
+.site-header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 50;
+  height: calc(var(--header-h) + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  color: var(--white);
+}
+
+/* Fundo que só aparece depois que a Home sai da tela. */
+.site-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 31, 51, .88);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transition: opacity .35s var(--ease-out);
+}
+
+.site-header.is-solid::before {
+  opacity: 1;
+}
+
+.menu-open .site-header::before {
+  opacity: 0;
+}
+
+.site-header__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-h);
+  padding: 0 calc(var(--gutter) - 10px) 0 var(--gutter);
+}
+
+/* --- Logo ----------------------------------------------------------------- */
+
+.brand {
+  display: block;
+  margin-left: -4px;
+  padding: 8px 4px;
+}
+
+.brand__logo {
+  width: auto;
+  height: 56px; /* o viewBox oficial inclui respiro ao redor da marca */
+}
+
+/* --- Botão de menu -------------------------------------------------------- */
+
+.menu-toggle {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.menu-toggle__line {
+  position: absolute;
+  left: 13px;
+  width: 22px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform var(--dur-base) var(--ease-soft);
+}
+
+.menu-toggle__line:first-child {
+  top: 20px;
+}
+
+.menu-toggle__line:last-child {
+  top: 27px;
+}
+
+.menu-toggle[aria-expanded="true"] .menu-toggle__line:first-child {
+  transform: translateY(3.5px) rotate(45deg);
+}
+
+.menu-toggle[aria-expanded="true"] .menu-toggle__line:last-child {
+  transform: translateY(-3.5px) rotate(-45deg);
+}
+
+.menu-toggle:focus-visible {
+  border-radius: 50%;
+  outline-offset: 0;
+}
+
+/* Sem JavaScript o menu não abre; o conteúdo continua acessível pela rolagem. */
+.no-js .menu-toggle {
+  display: none;
+}
+
+/* --- Painel de navegação -------------------------------------------------- */
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: flex;
+  flex-direction: column;
+  padding:
+    calc(var(--header-h) + env(safe-area-inset-top) + 24px)
+    var(--gutter)
+    calc(28px + env(safe-area-inset-bottom));
+  background: var(--navy);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity .3s var(--ease-out),
+    visibility 0s linear .3s;
+}
+
+.menu-open {
+  overflow: hidden;
+}
+
+.menu-open .menu {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity .3s var(--ease-out), visibility 0s;
+}
+
+.menu__item {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity .4s var(--ease-out),
+    transform .5s var(--ease-soft);
+}
+
+.menu-open .menu__item {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(60ms + var(--i, 0) * 50ms);
+}
+
+.menu__link {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(220, 230, 239, .14);
+  font-size: clamp(1.5rem, 1.1rem + 2vw, 1.875rem);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.menu__link:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .menu__link:hover {
+    color: var(--cyan);
+  }
+}
+
+.menu__index {
+  min-width: 2ch;
+  font-size: .75rem;
+  font-weight: 500;
+  letter-spacing: .1em;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-.35em);
+}
+
+.menu__footer {
+  margin-top: auto;
+  padding-top: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu__item {
+    transform: none;
+  }
+
+  .menu-toggle__line {
+    transition: none;
+  }
+}

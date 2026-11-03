@@ -1,0 +1,72 @@
+/* ==========================================================================
+   WEMAI — Portal e abertura
+   O SVG do portal vive dentro da Home: durante a abertura ele começa como a
+   logo sobre fundo claro e termina como a arquitetura que emoldura a paisagem.
+   ========================================================================== */
+
+.portal {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.portal__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden; /* até o JS posicionar os planos */
+}
+
+.portal.is-ready .portal__svg {
+  visibility: visible;
+}
+
+/* Antes do primeiro quadro, a tela já é o fundo claro da identidade. */
+.intro-pending .portal:not(.is-ready) {
+  background: var(--white);
+}
+
+.no-js .portal {
+  display: none;
+}
+
+.portal__wall {
+  fill: var(--white);
+}
+
+.portal__mark {
+  fill: var(--navy);
+}
+
+/* --- Pular abertura ------------------------------------------------------- */
+
+.intro-skip {
+  display: none;
+}
+
+.intro-pending .intro-skip {
+  display: block;
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(11, 31, 51, .1);
+  border-radius: var(--radius-pill);
+  background: rgba(250, 252, 253, .66);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--navy);
+  font-size: .8125rem;
+  letter-spacing: .02em;
+  opacity: 0;
+  /* Surge só depois do momento de identidade, para a logo ficar sozinha na tela. */
+  animation: intro-skip-in 1s var(--ease-out) 2.6s forwards;
+}
+
+@keyframes intro-skip-in {
+  to { opacity: .9; }
+}

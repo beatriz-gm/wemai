@@ -1,0 +1,227 @@
+/* ==========================================================================
+   WEMAI — Fundamentos
+   Tokens de design, reset, tipografia e utilitários compartilhados.
+   ========================================================================== */
+
+:root {
+  /* Paleta da marca */
+  --navy: #0B1F33;
+  --blue: #274B6F;
+  --cyan: #7EC8E3;
+  --mist: #DCE6EF;
+  --sand: #EDE9E2;
+  --white: #FAFCFD;
+
+  /* Tipografia */
+  --font-sans: "Sora", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Layout */
+  --gutter: clamp(20px, 5.6vw, 32px);
+  --header-h: 76px;
+  --radius-pill: 999px;
+
+  /* Movimento */
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-soft: cubic-bezier(.2, .7, .2, 1);
+  --dur-fast: 200ms;
+  --dur-base: 320ms;
+}
+
+/* --- Reset ---------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--navy);
+  background: var(--white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, p {
+  margin: 0;
+}
+
+ol, ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+svg {
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* --- Utilitários ---------------------------------------------------------- */
+
+.skip-link {
+  position: absolute;
+  z-index: 200;
+  left: var(--gutter);
+  top: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--white);
+  color: var(--navy);
+  font-size: .875rem;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* --- Botão ---------------------------------------------------------------- */
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 420px;
+  min-height: 56px;
+  padding: 8px 8px 8px 24px;
+  border-radius: var(--radius-pill);
+  background: var(--white);
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -.005em;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.button__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--white);
+  transition: transform var(--dur-base) var(--ease-soft);
+}
+
+.button:focus-visible {
+  outline-offset: 4px;
+  border-radius: var(--radius-pill);
+}
+
+@media (hover: hover) {
+  .button:hover {
+    background: var(--mist);
+  }
+
+  .button:hover .button__icon {
+    transform: translateY(2px);
+  }
+}
+
+.button:active {
+  transform: scale(.985);
+}
+
+/* --- Revelação progressiva após a abertura ------------------------------- */
+
+/* Enquanto a abertura acontece, a página fica parada no topo. */
+.intro-pending,
+.intro-pending body {
+  overflow: hidden;
+}
+
+[data-reveal] {
+  transition:
+    opacity 1.2s var(--ease-out),
+    transform 1.4s var(--ease-soft);
+  transition-delay: calc(var(--i, 0) * 150ms);
+}
+
+.intro-pending [data-reveal] {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    transition: opacity .3s linear;
+    transition-delay: 0s;
+  }
+
+  .intro-pending [data-reveal] {
+    transform: none;
+  }
+}
+
+/* --- Seções futuras (PROVISÓRIO — substituir nas próximas etapas) -------- */
+
+.section-placeholder {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-height: 70vh;
+  min-height: 70svh;
+  padding: 96px var(--gutter);
+  border-top: 1px solid var(--mist);
+  scroll-margin-top: var(--header-h);
+}
+
+.section-placeholder__index {
+  font-size: .75rem;
+  font-weight: 500;
+  letter-spacing: .12em;
+  color: var(--blue);
+}
+
+.section-placeholder h2 {
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}

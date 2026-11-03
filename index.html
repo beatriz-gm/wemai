@@ -1,1 +1,264 @@
+<!doctype html>
+<html lang="pt-BR" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>WEMAI — We Make It Real</title>
+  <meta name="description" content="Sites, sistemas personalizados e produtos digitais sob medida. A WEMAI cria a tecnologia que ajuda o seu negócio a ir mais longe.">
+  <meta name="theme-color" content="#0B1F33">
+  <link rel="icon" type="image/svg+xml" href="brand/wemai-icone-app.svg">
 
+  <!--
+    Decide, antes da primeira pintura, se a abertura será exibida.
+    Não exibe quando: movimento reduzido, já vista nesta sessão ou acesso direto a uma seção.
+    ?intro=1 força a abertura (útil para testes).
+  -->
+  <script>
+    (function () {
+      var root = document.documentElement;
+      root.classList.remove('no-js');
+      root.classList.add('js');
+
+      // Versão do CTA em avaliação: ?cta=botao mostra o botão leve.
+      if (/[?&]cta=botao\b/.test(location.search)) root.setAttribute('data-cta', 'botao');
+
+      var force = /[?&]intro=1\b/.test(location.search);
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var deepLink = location.hash && location.hash !== '#inicio';
+      var seen = false;
+      try { seen = sessionStorage.getItem('wemai:intro-seen') === '1'; } catch (e) {}
+
+      if (force || (!reduce && !seen && !deepLink)) {
+        root.classList.add('intro-pending');
+        // Segurança: se o script da abertura falhar, o conteúdo aparece mesmo assim.
+        window.__wemaiIntroFailsafe = setTimeout(function () {
+          root.classList.remove('intro-pending');
+        }, 14000);
+      }
+    })();
+  </script>
+
+  <link rel="preload" as="image" href="img/home-paisagem.webp" type="image/webp" fetchpriority="high">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500&display=swap">
+
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/header.css">
+  <link rel="stylesheet" href="css/hero.css">
+  <link rel="stylesheet" href="css/intro.css">
+
+  <script src="js/intro.js" defer></script>
+  <script src="js/nav.js" defer></script>
+</head>
+<body>
+
+  <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+  <button class="intro-skip" type="button" data-intro-skip>Pular abertura</button>
+
+  <!-- ============================================================
+       Cabeçalho
+       ============================================================ -->
+  <header class="site-header" data-header>
+    <div class="site-header__bar">
+      <a class="brand" href="#inicio" aria-label="WEMAI — voltar ao início" data-reveal style="--i:0">
+        <!-- Arquivo oficial, sem alterações: brand/wemai-logo-branco.svg -->
+        <img class="brand__logo" src="brand/wemai-logo-branco.svg" alt="" width="1257" height="876">
+      </a>
+
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-menu" aria-label="Abrir menu" data-menu-toggle data-reveal style="--i:1">
+        <span class="menu-toggle__line" aria-hidden="true"></span>
+        <span class="menu-toggle__line" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <nav class="menu" id="site-menu" aria-label="Navegação principal">
+      <ol class="menu__list">
+        <li class="menu__item" style="--i:0"><a class="menu__link" href="#inicio"><span class="menu__index" aria-hidden="true">01</span>Início</a></li>
+        <li class="menu__item" style="--i:1"><a class="menu__link" href="#solucoes"><span class="menu__index" aria-hidden="true">02</span>Soluções</a></li>
+        <li class="menu__item" style="--i:2"><a class="menu__link" href="#como-trabalhamos"><span class="menu__index" aria-hidden="true">03</span>Como trabalhamos</a></li>
+        <li class="menu__item" style="--i:3"><a class="menu__link" href="#o-que-pode-mudar"><span class="menu__index" aria-hidden="true">04</span>O que pode mudar</a></li>
+      </ol>
+      <div class="menu__footer menu__item" style="--i:4">
+        <a class="button" href="#contato">
+          Contato
+          <span class="button__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 12 4M5.5 4H12v6.5"/></svg>
+          </span>
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="conteudo">
+
+    <!-- ============================================================
+         01 — Abertura e Home
+         Camadas independentes, de trás para frente:
+         1. paisagem (img/home-paisagem.webp)
+         2. arquitetura do portal + logo original (SVG controlado por js/intro.js)
+         3. véu de leitura
+         4. interface
+         ============================================================ -->
+    <section class="hero" id="inicio" aria-labelledby="hero-title" data-hero>
+
+      <div class="scene" aria-hidden="true">
+        <!-- Paisagem em dois planos da mesma imagem: céu/montanhas (distante) e água próxima. -->
+        <img class="scene__landscape" src="img/home-paisagem.webp" alt="" width="941" height="1672" fetchpriority="high" decoding="async" data-landscape>
+        <img class="scene__landscape scene__landscape--near" src="img/home-paisagem.webp" alt="" width="941" height="1672" decoding="async" data-landscape-near>
+
+        <!--
+          Portal. Paths da logo copiados sem alteração de brand/wemai-logo-principal.svg.
+          Até a transformação começar, a parede é um plano inteiro, sem recortes: a tela
+          mostra apenas a logo original. Depois, uma máscara única abre o vão (contorno
+          interno A252) a partir do centro.
+          Dois planos com a mesma geometria formam uma passagem curta: a entrada (a logo)
+          e a saída, mais distante. O interior entre eles é o próprio material do arco,
+          que clareia em direção à luz da saída — o arco ganha espessura.
+        -->
+        <div class="portal" data-portal-layer>
+          <svg class="portal__svg" focusable="false">
+            <defs>
+              <!--
+                Profundidade do interior: o gradiente vai da borda de saída (0) até a borda de
+                entrada (1). js/intro.js recalcula círculos e stops a cada quadro.
+              -->
+              <radialGradient id="portal-interior" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="252" fx="886.5" fy="364" data-interior>
+                <stop offset="0" stop-color="#F6E2C8"/>
+                <stop offset=".04" stop-color="#B9C6D2"/>
+                <stop offset=".2" stop-color="#5D7C99"/>
+                <stop offset=".55" stop-color="#24415F"/>
+                <stop offset=".92" stop-color="#132C46"/>
+                <stop offset="1" stop-color="#0E2439"/>
+              </radialGradient>
+              <!-- Luz lateral: o sol está à direita, então a parede interna esquerda recebe mais luz. -->
+              <linearGradient id="portal-side" gradientUnits="userSpaceOnUse" x1="286.5" y1="0" x2="1486.5" y2="0">
+                <stop offset="0" stop-color="#F6E2C8" stop-opacity=".2"/>
+                <stop offset=".5" stop-color="#F6E2C8" stop-opacity="0"/>
+                <stop offset="1" stop-color="#061524" stop-opacity=".32"/>
+              </linearGradient>
+              <!-- Piso: reflexo quente junto à saída, escurecendo em direção à câmera. -->
+              <linearGradient id="portal-floor" gradientUnits="userSpaceOnUse" x1="0" y1="494.63" x2="0" y2="620">
+                <stop offset="0" stop-color="#7D8DA0"/>
+                <stop offset=".25" stop-color="#3A5068"/>
+                <stop offset="1" stop-color="#18304A"/>
+              </linearGradient>
+              <!-- Máscara de revelação (luminância): branco = parede, preto = vão aberto. -->
+              <radialGradient id="portal-reveal" gradientUnits="userSpaceOnUse" cx="886.5" cy="390" r="300">
+                <stop offset="0" stop-color="#000" stop-opacity="0" data-reveal-stop/>
+                <stop offset=".3" stop-color="#000" stop-opacity="0" data-reveal-stop/>
+              </radialGradient>
+              <mask id="portal-opening" maskUnits="userSpaceOnUse" x="-20000" y="-20000" width="40000" height="40000">
+                <rect x="-20000" y="-20000" width="40000" height="40000" fill="#fff"/>
+                <path fill="url(#portal-reveal)" d="M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
+              </mask>
+              <!-- Face do arco à medida que ganha escala: o azul-marinho recebe luz de cima. -->
+              <linearGradient id="portal-face" gradientUnits="userSpaceOnUse" x1="0" y1="85" x2="0" y2="494.63">
+                <stop offset="0" stop-color="#1D3A58"/>
+                <stop offset=".45" stop-color="#0B1F33"/>
+              </linearGradient>
+              <!-- Parede de entrada: escurece levemente longe do arco conforme a câmera se aproxima. -->
+              <radialGradient id="portal-wall" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="1150">
+                <stop offset=".3" stop-color="#FAFCFD"/>
+                <stop offset=".5" stop-color="#E8ECEF"/>
+                <stop offset="1" stop-color="#AFBCC9"/>
+              </radialGradient>
+            </defs>
+
+            <g data-plane="back">
+              <path fill="url(#portal-interior)" fill-rule="evenodd" d="M-20000 -20000 H20000 V20000 H-20000 Z M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
+              <path fill="url(#portal-side)" fill-rule="evenodd" d="M-20000 -20000 H20000 V20000 H-20000 Z M671 494.63 A252 252 0 1 1 1102 494.63 Z"/>
+              <path fill="url(#portal-floor)" d="M-20000 494.63 H20000 V20000 H-20000 Z"/>
+            </g>
+
+            <g data-plane="front">
+              <!-- Parede: plano inteiro (sem recorte) até a revelação; o JS troca o contorno depois. -->
+              <g data-wall>
+                <path class="portal__wall" d="M-20000 -20000 H20000 V20000 H-20000 Z" data-wall-path/>
+                <path fill="url(#portal-wall)" opacity="0" data-shade data-wall-path d="M-20000 -20000 H20000 V20000 H-20000 Z"/>
+              </g>
+              <g class="portal__mark" data-mark>
+                <path d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                <!-- Volume do arco: só aparece depois que a transformação começa. -->
+                <path fill="url(#portal-face)" opacity="0" data-face d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                <g data-wordmark>
+                  <g>
+                    <path d="M340.42 578 L388.15 703.52 L438.53 578 L451.42 578 L499.1 703.39 L548.55 578 L561.45 578 L505.45 720 L492.58 720 L444.85 594.48 L394.47 720 L381.58 720 L327.58 578 Z"/>
+                    <path d="M663 578 L772 578 L772 590 L663 590 Z"/>
+                    <path d="M663 643 L772 643 L772 655 L663 655 Z"/>
+                    <path d="M663 708 L772 708 L772 720 L663 720 Z"/>
+                    <path d="M901 720 L901 578 L914.58 578 L976.5 658.18 L1038.42 578 L1052 578 L1052 720 L1040 720 L1040 595.59 L976.5 677.82 L913 595.59 L913 720 Z"/>
+                    <path d="M1154.16 720 L1231.66 578 L1245.34 578 L1322.84 720 L1309.16 720 L1238.5 590.52 L1167.84 720 Z"/>
+                    <path d="M1433 578 L1445 578 L1445 720 L1433 720 Z"/>
+                  </g>
+                  <g>
+                    <path d="M492.88 790 L501.11 816.25 L511.68 790 L515.12 790 L525.69 816.25 L533.92 790 L537.28 790 L527.56 821 L524.16 821 L513.4 794.28 L502.64 821 L499.24 821 L489.52 790 Z"/>
+                    <path d="M566.4 790 L593.4 790 L593.4 793.2 L569.6 793.2 L569.6 803.9 L591.24 803.9 L591.24 807.1 L569.6 807.1 L569.6 817.8 L593.4 817.8 L593.4 821 L566.4 821 Z"/>
+                    <path d="M667.4 821 L667.4 790 L671.13 790 L685.9 806.8 L700.67 790 L704.4 790 L704.4 821 L701.2 821 L701.2 794.24 L685.9 811.64 L670.6 794.24 L670.6 821 Z"/>
+                    <path d="M733.21 821 L748.61 790 L752.19 790 L767.59 821 L764.01 821 L750.4 793.6 L736.79 821 Z"/>
+                    <path d="M741.49 807.93 L759.31 807.93 L760.9 811.13 L739.9 811.13 Z"/>
+                    <path d="M796.4 790 L799.6 790 L799.6 821 L796.4 821 Z"/>
+                    <path d="M798 803.64 L821.06 790 L827.34 790 L798 807.36 Z"/>
+                    <path d="M810.39 798.17 L826.77 821 L822.83 821 L807.62 799.81 Z"/>
+                    <path d="M854.4 790 L881.4 790 L881.4 793.2 L857.6 793.2 L857.6 803.9 L879.24 803.9 L879.24 807.1 L857.6 807.1 L857.6 817.8 L881.4 817.8 L881.4 821 L854.4 821 Z"/>
+                    <path d="M955.4 790 L958.6 790 L958.6 821 L955.4 821 Z"/>
+                    <path d="M987.6 790 L1016.6 790 L1016.6 793.2 L1003.7 793.2 L1003.7 821 L1000.5 821 L1000.5 793.2 L987.6 793.2 Z"/>
+                    <path d="M1090.6 790 L1112.1 790 A6.5 6.5 0 0 1 1118.6 796.5 L1118.6 801.22 A6.5 6.5 0 0 1 1112.1 807.72 L1110.08 807.72 L1121.73 821 L1117.47 821 L1105.83 807.72 L1093.8 807.72 L1093.8 821 L1090.6 821 Z M1093.8 793.2 L1093.8 804.52 L1112.1 804.52 A3.3 3.3 0 0 0 1115.4 801.22 L1115.4 796.5 A3.3 3.3 0 0 0 1112.1 793.2 Z"/>
+                    <path d="M1148.6 790 L1175.6 790 L1175.6 793.2 L1151.8 793.2 L1151.8 803.9 L1173.44 803.9 L1173.44 807.1 L1151.8 807.1 L1151.8 817.8 L1175.6 817.8 L1175.6 821 L1148.6 821 Z"/>
+                    <path d="M1198.41 821 L1213.81 790 L1217.39 790 L1232.79 821 L1229.21 821 L1215.6 793.6 L1201.99 821 Z"/>
+                    <path d="M1206.69 807.93 L1224.51 807.93 L1226.1 811.13 L1205.1 811.13 Z"/>
+                    <path d="M1258.6 790 L1261.8 790 L1261.8 817.8 L1283.6 817.8 L1283.6 821 L1258.6 821 Z"/>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <div class="scene__tone"></div>
+      </div>
+
+      <div class="hero__content">
+        <div class="hero__message">
+          <h1 class="hero__title" id="hero-title" data-reveal style="--i:2">Seu negócio tem potencial para ir mais longe.</h1>
+          <p class="hero__lead" data-reveal style="--i:3">Nós criamos a tecnologia que ajuda você a chegar lá.</p>
+          <p class="hero__desc" data-reveal style="--i:4">Sites, sistemas personalizados e produtos digitais sob medida.</p>
+        </div>
+
+        <div class="hero__action" data-reveal style="--i:5">
+          <!-- Duas versões em teste: flutuante (padrão) e botão leve (?cta=botao). -->
+          <a class="cta" href="#solucoes">
+            <span class="cta__label">Conhecer nossas soluções</span>
+            <svg class="cta__arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 2.5v11M4 9.5l4 4 4-4"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Seções futuras — PROVISÓRIO
+         Apenas âncoras para validar a navegação. Serão substituídas
+         pelas seções aprovadas nas próximas etapas.
+         ============================================================ -->
+    <section class="section-placeholder" id="solucoes" tabindex="-1" aria-labelledby="t-solucoes">
+      <span class="section-placeholder__index">02</span>
+      <h2 id="t-solucoes">O que podemos criar juntos</h2>
+    </section>
+    <section class="section-placeholder" id="como-trabalhamos" tabindex="-1" aria-labelledby="t-como">
+      <span class="section-placeholder__index">03</span>
+      <h2 id="t-como">Como trabalhamos</h2>
+    </section>
+    <section class="section-placeholder" id="o-que-pode-mudar" tabindex="-1" aria-labelledby="t-mudar">
+      <span class="section-placeholder__index">04</span>
+      <h2 id="t-mudar">O que pode mudar</h2>
+    </section>
+    <section class="section-placeholder" id="contato" tabindex="-1" aria-labelledby="t-contato">
+      <span class="section-placeholder__index">05</span>
+      <h2 id="t-contato">Seu próximo passo</h2>
+    </section>
+
+  </main>
+</body>
+</html>

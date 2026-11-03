@@ -1,0 +1,200 @@
+/* ==========================================================================
+   WEMAI — Home: primeira tela
+   A paisagem é a mesma vista pelo vão do arco durante a abertura. Ao final da
+   travessia, a câmera para logo após a entrada do portal: a paisagem ocupa a
+   tela e um trecho da arquitetura permanece nas extremidades.
+   ========================================================================== */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  height: 100vh;
+  height: 100svh;
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--navy);
+  color: var(--white);
+}
+
+/* --- Cena ----------------------------------------------------------------- */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+
+/* O enquadramento (cover + posição) é replicado em js/intro.js para localizar o horizonte. */
+.scene__landscape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% 50%;
+}
+
+/* Plano próximo: só a água abaixo da borda infinita (73% da imagem). Durante a travessia
+   ele cresce mais rápido que o céu e as montanhas (paralaxe); ao final coincide com a imagem. */
+.scene__landscape--near {
+  -webkit-mask-image: linear-gradient(180deg, transparent 73.6%, #000 76.5%);
+  mask-image: linear-gradient(180deg, transparent 73.6%, #000 76.5%);
+}
+
+/* Controle tonal: entra junto com a interface, para a paisagem recuar e virar
+   cenário. Um véu geral discreto + reforço atrás do texto e do CTA. */
+.scene__tone {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(11, 31, 51, .66) 0%,
+      rgba(11, 31, 51, .5) 28%,
+      rgba(11, 31, 51, .16) 50%,
+      rgba(11, 31, 51, 0) 60%),
+    linear-gradient(0deg,
+      rgba(11, 31, 51, .55) 0%,
+      rgba(11, 31, 51, 0) 26%),
+    rgba(11, 31, 51, .16);
+  transition: opacity 2.2s var(--ease-out);
+}
+
+.intro-pending .scene__tone {
+  opacity: 0;
+}
+
+/* --- Conteúdo ------------------------------------------------------------- */
+
+.hero__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding:
+    calc(var(--header-h) + env(safe-area-inset-top) + clamp(20px, 5svh, 48px))
+    var(--gutter)
+    calc(clamp(24px, 4svh, 40px) + env(safe-area-inset-bottom));
+}
+
+.hero__message {
+  text-shadow: 0 1px 24px rgba(11, 31, 51, .28);
+}
+
+.hero__title {
+  font-size: clamp(2rem, 1.1rem + 4.6vw, 2.625rem);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+
+.hero__lead {
+  margin-top: 16px;
+  max-width: 25ch;
+  font-size: clamp(1.0625rem, .98rem + .4vw, 1.1875rem);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--mist);
+  text-wrap: pretty;
+}
+
+.hero__desc {
+  margin-top: 24px;
+  max-width: 30ch;
+  font-size: .9375rem;
+  line-height: 1.55;
+  color: rgba(250, 252, 253, .9);
+}
+
+/* --- CTA ------------------------------------------------------------------
+   Versão 1 (padrão): flutuante — texto, filete e seta discreta.
+   Versão 2 (?cta=botao): botão leve com contorno fino e vidro sutil. */
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+  color: var(--white);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: .005em;
+  text-shadow: 0 1px 16px rgba(11, 31, 51, .35);
+}
+
+.cta__label {
+  padding-bottom: 6px;
+  background: linear-gradient(rgba(250, 252, 253, .5), rgba(250, 252, 253, .5)) 0 100% / 100% 1px no-repeat;
+  transition: background-size .5s var(--ease-soft);
+}
+
+.cta__arrow {
+  flex: none;
+  margin-top: -6px;
+  opacity: .85;
+  transition: transform .5s var(--ease-soft);
+}
+
+.cta:focus-visible {
+  outline-offset: 6px;
+}
+
+@media (hover: hover) {
+  .cta:hover .cta__label {
+    background-size: 40% 1px;
+  }
+
+  .cta:hover .cta__arrow {
+    transform: translateY(3px);
+  }
+}
+
+[data-cta="botao"] .cta {
+  gap: 12px;
+  padding: 0 20px 0 22px;
+  border: 1px solid rgba(250, 252, 253, .34);
+  border-radius: var(--radius-pill);
+  background: rgba(250, 252, 253, .07);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  text-shadow: none;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+[data-cta="botao"] .cta__label {
+  padding-bottom: 0;
+  background: none;
+}
+
+[data-cta="botao"] .cta__arrow {
+  margin-top: 0;
+}
+
+[data-cta="botao"] .cta:focus-visible {
+  border-radius: var(--radius-pill);
+  outline-offset: 4px;
+}
+
+@media (hover: hover) {
+  [data-cta="botao"] .cta:hover {
+    border-color: rgba(250, 252, 253, .6);
+    background: rgba(250, 252, 253, .14);
+  }
+}
+
+/* Telas baixas (ex.: iPhone SE): o texto não avança sobre o sol. */
+@media (max-height: 700px) {
+  .hero__title {
+    font-size: clamp(1.75rem, 1.05rem + 3.8vw, 2.125rem);
+  }
+
+  .hero__lead {
+    margin-top: 10px;
+    font-size: 1rem;
+  }
+
+  .hero__desc {
+    margin-top: 14px;
+  }
+}
