@@ -124,45 +124,20 @@
 
         <!--
           Portal. Paths da logo copiados sem alteração de brand/wemai-logo-principal.svg.
-          O arco nunca é fechado: não há máscara com a forma do vão, base nem piso.
-          Quem se transforma é o espaço inteiro, visto por uma câmera em trilho:
-          - campo de profundidade (plano da saída): começa idêntico ao fundo claro; as
-            bordas da tela viram paredes próximas e claras, o centro se aprofunda aos poucos
-            e a saída para a paisagem se abre em degradê, sem contorno;
-          - camadas: contornos abertos do próprio arco, em linhas finas de baixa opacidade,
-            distribuídos em profundidades diferentes (inclusive à frente da logo);
-          - entrada: a logo original.
+          Como no storyboard, o arco é a SAÍDA, ao fundo; entre a câmera e ele nasce um
+          corredor curto. Todos os elementos são projetados pela mesma câmera em trilho,
+          cada um com a escala da sua profundidade (FOCAL / distância):
+          - saída: névoa com luz ambiente, aberta em degradê no vão do arco (e, depois,
+            abaixo dele, sem base), e a luz azulada;
+          - corredor: camadas em profundidades diferentes. Cada uma cobre tudo fora da seção
+            (abóbada no círculo do arco + paredes retas, aberta embaixo); sobrepostas, dão
+            sombra que cresce em direção à câmera e linhas sutis de perspectiva;
+          - a logo original, no plano da saída.
+          O arco nunca é fechado: não há base, piso nem círculo completo.
         -->
         <div class="portal" data-portal-layer>
           <svg class="portal__svg" focusable="false">
             <defs>
-              <!-- Abóbada e paredes: a saída é transparente no centro; em volta, o espaço se
-                   aprofunda e clareia em direção às bordas (paredes próximas). Cores e
-                   opacidades dos stops são definidas por js/intro.js. -->
-              <radialGradient id="portal-space" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="720"
-                gradientTransform="translate(886.5 364) scale(1.12 1) translate(-886.5 -364)" data-space>
-                <stop offset="0" stop-color="#FAFCFD"/>
-                <stop offset=".3" stop-color="#FAFCFD"/>
-                <stop offset=".36" stop-color="#FAFCFD"/>
-                <stop offset=".45" stop-color="#FAFCFD"/>
-                <stop offset=".7" stop-color="#FAFCFD"/>
-                <stop offset="1" stop-color="#FAFCFD"/>
-              </radialGradient>
-              <!-- A abóbada só existe acima das pontas do arco: some em degradê antes delas,
-                   então nada se fecha sob o arco. -->
-              <linearGradient id="portal-space-fade" gradientUnits="userSpaceOnUse" x1="0" y1="440" x2="0" y2="620">
-                <stop offset="0" stop-color="#fff"/>
-                <stop offset="1" stop-color="#000"/>
-              </linearGradient>
-              <mask id="portal-space-mask" maskUnits="userSpaceOnUse" x="-20000" y="-20000" width="40000" height="40000">
-                <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-space-fade)"/>
-              </mask>
-              <!-- Piso próximo: claro junto à borda inferior da tela, sem linha alguma. -->
-              <linearGradient id="portal-floor" gradientUnits="userSpaceOnUse" x1="0" y1="480" x2="0" y2="1150" data-floor>
-                <stop offset="0" stop-color="#FAFCFD" stop-opacity="0"/>
-                <stop offset=".5" stop-color="#FAFCFD" stop-opacity=".55"/>
-                <stop offset="1" stop-color="#FAFCFD" stop-opacity=".95"/>
-              </linearGradient>
               <!-- Luz ambiente: um pouco mais luminosa atrás do arco, levemente mais fria nas
                    bordas. Diferença mínima — a tela inicial continua limpa. -->
               <radialGradient id="portal-ambient" gradientUnits="userSpaceOnUse" cx="886.5" cy="330" r="2800" data-ambient>
@@ -177,62 +152,96 @@
                 <stop offset=".55" stop-color="#D2E4F3" stop-opacity=".45"/>
                 <stop offset="1" stop-color="#E6EEF6" stop-opacity="0"/>
               </radialGradient>
-              <!-- Face do arco à medida que ganha escala: o azul-marinho recebe luz de cima. -->
-              <linearGradient id="portal-face" gradientUnits="userSpaceOnUse" x1="0" y1="85" x2="0" y2="494.63">
-                <stop offset="0" stop-color="#1D3A58"/>
-                <stop offset=".45" stop-color="#0B1F33"/>
+
+              <!-- Abertura da saída (máscara de luminância: branco = névoa, preto = paisagem).
+                   O vão do arco abre primeiro; a coluna abaixo dele, depois — sem base. -->
+              <radialGradient id="portal-opening-arch" gradientUnits="userSpaceOnUse" cx="886.5" cy="346.5" r="300">
+                <stop offset="0" stop-color="#000" stop-opacity="0" data-opening-arch/>
+                <stop offset=".72" stop-color="#000" stop-opacity="0" data-opening-arch/>
+                <stop offset="1" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="portal-opening-column" gradientUnits="userSpaceOnUse" x1="560" y1="0" x2="1213" y2="0">
+                <stop offset="0" stop-color="#000" stop-opacity="0"/>
+                <stop offset=".32" stop-color="#000" stop-opacity="0" data-opening-column/>
+                <stop offset=".68" stop-color="#000" stop-opacity="0" data-opening-column/>
+                <stop offset="1" stop-color="#000" stop-opacity="0"/>
               </linearGradient>
+              <mask id="portal-opening" maskUnits="userSpaceOnUse" x="-20000" y="-20000" width="40000" height="40000">
+                <rect x="-20000" y="-20000" width="40000" height="40000" fill="#fff"/>
+                <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-opening-arch)"/>
+                <rect x="560" y="346.5" width="653" height="20000" fill="url(#portal-opening-column)"/>
+              </mask>
+
+              <!--
+                Modelo de camada do corredor (o JS clona um por profundidade). Sem bordas:
+                transparente dentro da seção e sombra/luz em degradê fora dela. O foco fica
+                no centro do arco e o círculo é deslocado muito para baixo, então a seção tem a
+                forma de uma abóbada com paredes que descem quase verticais — nunca se fecha
+                embaixo. gradientTransform estreita a seção horizontalmente. O stop claro logo
+                após a borda é um filete de luz suave: a linha arquitetônica da camada.
+              -->
+              <radialGradient id="portal-layer" gradientUnits="userSpaceOnUse"
+                cx="886.5" cy="3346.5" r="3340" fx="886.5" fy="346.5"
+                gradientTransform="translate(886.5 346.5) scale(.2316 1) translate(-886.5 -346.5)" data-layer-gradient>
+                <stop offset=".86" stop-color="#5C6F86" stop-opacity="0"/>
+                <stop offset=".868" stop-color="#F4EBDF" stop-opacity="0"/>
+                <stop offset=".9" stop-color="#5C6F86" stop-opacity="0"/>
+                <stop offset="1" stop-color="#5C6F86" stop-opacity="0"/>
+              </radialGradient>
+
+              <!-- Luz no arco: da borda externa azul-marinho à borda interna mais clara, como
+                   luz natural vinda do vão. Só a cor muda; a geometria é a original. -->
+              <radialGradient id="portal-face" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="290">
+                <stop offset=".869" stop-color="#7FA2C4"/>
+                <stop offset=".9" stop-color="#3D6389"/>
+                <stop offset=".955" stop-color="#0B1F33"/>
+              </radialGradient>
             </defs>
 
             <g data-plane="exit">
-              <!-- Névoa com luz ambiente: cobre tudo na identidade e se dissipa enquanto a saída se abre. -->
+              <!-- Névoa com luz ambiente: cobre tudo na identidade; abre-se no vão com a aproximação. -->
               <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-ambient)" data-haze/>
-              <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-floor)" data-space-layer/>
-              <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-space)" mask="url(#portal-space-mask)" data-space-layer/>
-              <!-- Luz azulada no vão: acima do espaço, cede lugar à paisagem quando a saída se abre. -->
               <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-glow)" opacity="0" data-glow/>
             </g>
 
-            <!-- Camadas: o JS replica este contorno aberto (externo do arco) em várias profundidades. -->
-            <g class="portal__ribs" data-ribs>
-              <path class="portal__rib" d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63" data-rib-template/>
-            </g>
+            <!-- Corredor: o JS cria uma camada por profundidade, cada uma com seu degradê. -->
+            <g data-corridor></g>
 
-            <g data-plane="front">
-                <g class="portal__mark" data-mark>
-                  <path d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
-                  <!-- Volume do arco: só aparece depois que a transformação começa. -->
-                  <path fill="url(#portal-face)" opacity="0" data-face d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
-                  <g data-wordmark>
-                    <g>
-                      <path d="M340.42 578 L388.15 703.52 L438.53 578 L451.42 578 L499.1 703.39 L548.55 578 L561.45 578 L505.45 720 L492.58 720 L444.85 594.48 L394.47 720 L381.58 720 L327.58 578 Z"/>
-                      <path d="M663 578 L772 578 L772 590 L663 590 Z"/>
-                      <path d="M663 643 L772 643 L772 655 L663 655 Z"/>
-                      <path d="M663 708 L772 708 L772 720 L663 720 Z"/>
-                      <path d="M901 720 L901 578 L914.58 578 L976.5 658.18 L1038.42 578 L1052 578 L1052 720 L1040 720 L1040 595.59 L976.5 677.82 L913 595.59 L913 720 Z"/>
-                      <path d="M1154.16 720 L1231.66 578 L1245.34 578 L1322.84 720 L1309.16 720 L1238.5 590.52 L1167.84 720 Z"/>
-                      <path d="M1433 578 L1445 578 L1445 720 L1433 720 Z"/>
-                    </g>
-                    <g>
-                      <path d="M492.88 790 L501.11 816.25 L511.68 790 L515.12 790 L525.69 816.25 L533.92 790 L537.28 790 L527.56 821 L524.16 821 L513.4 794.28 L502.64 821 L499.24 821 L489.52 790 Z"/>
-                      <path d="M566.4 790 L593.4 790 L593.4 793.2 L569.6 793.2 L569.6 803.9 L591.24 803.9 L591.24 807.1 L569.6 807.1 L569.6 817.8 L593.4 817.8 L593.4 821 L566.4 821 Z"/>
-                      <path d="M667.4 821 L667.4 790 L671.13 790 L685.9 806.8 L700.67 790 L704.4 790 L704.4 821 L701.2 821 L701.2 794.24 L685.9 811.64 L670.6 794.24 L670.6 821 Z"/>
-                      <path d="M733.21 821 L748.61 790 L752.19 790 L767.59 821 L764.01 821 L750.4 793.6 L736.79 821 Z"/>
-                      <path d="M741.49 807.93 L759.31 807.93 L760.9 811.13 L739.9 811.13 Z"/>
-                      <path d="M796.4 790 L799.6 790 L799.6 821 L796.4 821 Z"/>
-                      <path d="M798 803.64 L821.06 790 L827.34 790 L798 807.36 Z"/>
-                      <path d="M810.39 798.17 L826.77 821 L822.83 821 L807.62 799.81 Z"/>
-                      <path d="M854.4 790 L881.4 790 L881.4 793.2 L857.6 793.2 L857.6 803.9 L879.24 803.9 L879.24 807.1 L857.6 807.1 L857.6 817.8 L881.4 817.8 L881.4 821 L854.4 821 Z"/>
-                      <path d="M955.4 790 L958.6 790 L958.6 821 L955.4 821 Z"/>
-                      <path d="M987.6 790 L1016.6 790 L1016.6 793.2 L1003.7 793.2 L1003.7 821 L1000.5 821 L1000.5 793.2 L987.6 793.2 Z"/>
-                      <path d="M1090.6 790 L1112.1 790 A6.5 6.5 0 0 1 1118.6 796.5 L1118.6 801.22 A6.5 6.5 0 0 1 1112.1 807.72 L1110.08 807.72 L1121.73 821 L1117.47 821 L1105.83 807.72 L1093.8 807.72 L1093.8 821 L1090.6 821 Z M1093.8 793.2 L1093.8 804.52 L1112.1 804.52 A3.3 3.3 0 0 0 1115.4 801.22 L1115.4 796.5 A3.3 3.3 0 0 0 1112.1 793.2 Z"/>
-                      <path d="M1148.6 790 L1175.6 790 L1175.6 793.2 L1151.8 793.2 L1151.8 803.9 L1173.44 803.9 L1173.44 807.1 L1151.8 807.1 L1151.8 817.8 L1175.6 817.8 L1175.6 821 L1148.6 821 Z"/>
-                      <path d="M1198.41 821 L1213.81 790 L1217.39 790 L1232.79 821 L1229.21 821 L1215.6 793.6 L1201.99 821 Z"/>
-                      <path d="M1206.69 807.93 L1224.51 807.93 L1226.1 811.13 L1205.1 811.13 Z"/>
-                      <path d="M1258.6 790 L1261.8 790 L1261.8 817.8 L1283.6 817.8 L1283.6 821 L1258.6 821 Z"/>
-                    </g>
+            <g data-plane="mark">
+              <g class="portal__mark" data-mark>
+                <path d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                <!-- Luz no arco: só aparece depois que a transformação começa (a geometria é a original). -->
+                <path fill="url(#portal-face)" opacity="0" data-face d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                <g data-wordmark>
+                  <g>
+                    <path d="M340.42 578 L388.15 703.52 L438.53 578 L451.42 578 L499.1 703.39 L548.55 578 L561.45 578 L505.45 720 L492.58 720 L444.85 594.48 L394.47 720 L381.58 720 L327.58 578 Z"/>
+                    <path d="M663 578 L772 578 L772 590 L663 590 Z"/>
+                    <path d="M663 643 L772 643 L772 655 L663 655 Z"/>
+                    <path d="M663 708 L772 708 L772 720 L663 720 Z"/>
+                    <path d="M901 720 L901 578 L914.58 578 L976.5 658.18 L1038.42 578 L1052 578 L1052 720 L1040 720 L1040 595.59 L976.5 677.82 L913 595.59 L913 720 Z"/>
+                    <path d="M1154.16 720 L1231.66 578 L1245.34 578 L1322.84 720 L1309.16 720 L1238.5 590.52 L1167.84 720 Z"/>
+                    <path d="M1433 578 L1445 578 L1445 720 L1433 720 Z"/>
+                  </g>
+                  <g>
+                    <path d="M492.88 790 L501.11 816.25 L511.68 790 L515.12 790 L525.69 816.25 L533.92 790 L537.28 790 L527.56 821 L524.16 821 L513.4 794.28 L502.64 821 L499.24 821 L489.52 790 Z"/>
+                    <path d="M566.4 790 L593.4 790 L593.4 793.2 L569.6 793.2 L569.6 803.9 L591.24 803.9 L591.24 807.1 L569.6 807.1 L569.6 817.8 L593.4 817.8 L593.4 821 L566.4 821 Z"/>
+                    <path d="M667.4 821 L667.4 790 L671.13 790 L685.9 806.8 L700.67 790 L704.4 790 L704.4 821 L701.2 821 L701.2 794.24 L685.9 811.64 L670.6 794.24 L670.6 821 Z"/>
+                    <path d="M733.21 821 L748.61 790 L752.19 790 L767.59 821 L764.01 821 L750.4 793.6 L736.79 821 Z"/>
+                    <path d="M741.49 807.93 L759.31 807.93 L760.9 811.13 L739.9 811.13 Z"/>
+                    <path d="M796.4 790 L799.6 790 L799.6 821 L796.4 821 Z"/>
+                    <path d="M798 803.64 L821.06 790 L827.34 790 L798 807.36 Z"/>
+                    <path d="M810.39 798.17 L826.77 821 L822.83 821 L807.62 799.81 Z"/>
+                    <path d="M854.4 790 L881.4 790 L881.4 793.2 L857.6 793.2 L857.6 803.9 L879.24 803.9 L879.24 807.1 L857.6 807.1 L857.6 817.8 L881.4 817.8 L881.4 821 L854.4 821 Z"/>
+                    <path d="M955.4 790 L958.6 790 L958.6 821 L955.4 821 Z"/>
+                    <path d="M987.6 790 L1016.6 790 L1016.6 793.2 L1003.7 793.2 L1003.7 821 L1000.5 821 L1000.5 793.2 L987.6 793.2 Z"/>
+                    <path d="M1090.6 790 L1112.1 790 A6.5 6.5 0 0 1 1118.6 796.5 L1118.6 801.22 A6.5 6.5 0 0 1 1112.1 807.72 L1110.08 807.72 L1121.73 821 L1117.47 821 L1105.83 807.72 L1093.8 807.72 L1093.8 821 L1090.6 821 Z M1093.8 793.2 L1093.8 804.52 L1112.1 804.52 A3.3 3.3 0 0 0 1115.4 801.22 L1115.4 796.5 A3.3 3.3 0 0 0 1112.1 793.2 Z"/>
+                    <path d="M1148.6 790 L1175.6 790 L1175.6 793.2 L1151.8 793.2 L1151.8 803.9 L1173.44 803.9 L1173.44 807.1 L1151.8 807.1 L1151.8 817.8 L1175.6 817.8 L1175.6 821 L1148.6 821 Z"/>
+                    <path d="M1198.41 821 L1213.81 790 L1217.39 790 L1232.79 821 L1229.21 821 L1215.6 793.6 L1201.99 821 Z"/>
+                    <path d="M1206.69 807.93 L1224.51 807.93 L1226.1 811.13 L1205.1 811.13 Z"/>
+                    <path d="M1258.6 790 L1261.8 790 L1261.8 817.8 L1283.6 817.8 L1283.6 821 L1258.6 821 Z"/>
                   </g>
                 </g>
+              </g>
             </g>
           </svg>
         </div>

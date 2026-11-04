@@ -35,15 +35,6 @@
   fill: var(--navy);
 }
 
-/* Camadas arquitetônicas: linhas finas, sempre com 1px na tela, opacidade via JS. */
-.portal__rib {
-  fill: none;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-  stroke-linecap: round;
-  opacity: 0;
-}
-
 /* --- Pular abertura ------------------------------------------------------- */
 
 .intro-skip {
