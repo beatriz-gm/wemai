@@ -178,13 +178,17 @@
                 no centro do arco e o círculo é deslocado muito para baixo, então a seção tem a
                 forma de uma abóbada com paredes que descem quase verticais — nunca se fecha
                 embaixo. gradientTransform define a largura da seção (ajustada ao formato da
-                tela pelo JS). A transição é longa e sem aresta: nenhuma camada desenha um anel.
+                tela pelo JS). Logo após a borda da seção, uma faixa de pedra iluminada (a face
+                da camada); depois, a sombra. O JS define a espessura dessa faixa: larga na
+                entrada do corredor, um filete no interior.
               -->
               <radialGradient id="portal-layer" gradientUnits="userSpaceOnUse"
                 cx="886.5" cy="3346.5" r="3340" fx="886.5" fy="346.5"
                 gradientTransform="translate(886.5 346.5) scale(.2316 1) translate(-886.5 -346.5)" data-layer-gradient>
-                <stop offset=".8" stop-color="#5C6F86" stop-opacity="0"/>
-                <stop offset=".96" stop-color="#5C6F86" stop-opacity="0"/>
+                <stop offset=".86" stop-color="#F2E8DC" stop-opacity="0"/>
+                <stop offset=".862" stop-color="#F2E8DC" stop-opacity="0"/>
+                <stop offset=".872" stop-color="#F2E8DC" stop-opacity="0"/>
+                <stop offset=".9" stop-color="#5C6F86" stop-opacity="0"/>
                 <stop offset="1" stop-color="#5C6F86" stop-opacity="0"/>
               </radialGradient>
 

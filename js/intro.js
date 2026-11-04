@@ -12,7 +12,8 @@
      - entrada: a camada do corredor mais próxima da câmera, que atravessa o
        quadro primeiro;
      - interior: camadas intermediárias — abóbada e paredes, abertas embaixo (sem
-       piso nem base), em degradês sem aresta; frisos de luz ao longo das paredes;
+       piso nem base). Cada seção tem borda definida e uma face de pedra iluminada:
+       larga na entrada (espessura), um filete no interior; frisos de luz nas paredes;
      - saída: a logo original, a névoa que se abre no vão e a paisagem.
    Não há rotação, inclinação, deslocamento lateral nem curvas concorrentes:
    tudo segue o mesmo progresso u.
@@ -77,15 +78,15 @@
   /* --- Cena ------------------------------------------------------------------ */
   var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 }; // horizonte do mar na imagem
   var AXIS_Y = 300;           // altura do eixo da câmera dentro do vão (unidades da logo)
-  var CORRIDOR_LENGTH = 480;  // comprimento do corredor diante do arco (unidades da logo)
-  var CORRIDOR_LAYERS = 6;
+  var CORRIDOR_LENGTH = 340;  // comprimento do corredor diante do arco (unidades da logo)
+  var CORRIDOR_LAYERS = 7;
   // Meia-largura da seção do corredor no mobile: um pouco maior que o arco (ver
   // #portal-layer). Em telas mais largas, a seção se alarga na proporção da tela.
   var CORRIDOR_R = 340;
   var CORRIDOR_BASE_ASPECT = .62;
   // No instante em que a entrada do corredor cruza as laterais da tela, o arco
   // ocupa esta fração da largura da entrada (define a perspectiva da cena).
-  var ENTRY_PASS_RATIO = .5;
+  var ENTRY_PASS_RATIO = .58;
   var LANDSCAPE_ZOOM = .05;   // quanto a paisagem distante cresce durante a travessia
   var NEAR_DEPTH = .14;       // quanto a água próxima está "comprimida" no início (paralaxe)
   var SCROLL_PORTAL_ZOOM = .22;
@@ -116,15 +117,24 @@
   /* Corredor: cor e opacidade de cada camada, da saída (índice 0) para a câmera.
      Junto à saída, pedra clara que esquenta com a luz da paisagem; perto da câmera,
      sombra fria. Sobrepostas, escurecem o espaço em direção às bordas da tela. */
-  var LAYER_NEAR_EXIT = '#E6DED4';
-  var LAYER_NEAR_EXIT_WARM = '#EDD5BB';
-  var LAYER_NEAR_CAMERA = '#53667D';
-  var LAYER_OPACITY = .19;
+  var LAYER_NEAR_EXIT = '#DDD4C9';
+  var LAYER_NEAR_EXIT_WARM = '#E6CDB1';
+  var LAYER_NEAR_CAMERA = '#4C5F76';
+  var LAYER_OPACITY = .17;
+
+  /* Face de cada camada: faixa de pedra iluminada logo após a borda da seção. Na entrada
+     do corredor ela é larga (a borda frontal, com espessura); no interior, um filete —
+     as linhas discretas de profundidade. Offsets do gradiente #portal-layer. */
+  var FACE_COLOR = '#F2E8DC';
+  var SECTION_EDGE = .86;
+  var FACE_ENTRY = { width: .032, opacity: .5 };
+  var FACE_INTERIOR = { width: .008, opacity: .15 };
 
   /* Ambiente: branco puro na identidade; com o avanço da câmera, assume os tons do
      túnel — pedra quente junto à saída, fria em direção às bordas. */
   var AMBIENT_WHITE = '#FFFFFF';
-  var AMBIENT_TUNNEL = ['#F4EEE7', '#E1E4E8', '#B2BDC9'];
+  var GLOW_OPACITY = .6;       // luz azulada no vão: presente, sem formar halo
+  var AMBIENT_TUNNEL = ['#ECE5DC', '#D8DDE2', '#A8B4C1'];
 
   /* Frisos de luz: duas retas junto à base das paredes do corredor (y = 640, abaixo das
      pontas do arco, sem nunca se unirem), como faixas de luz quente que convergem para a
@@ -205,10 +215,19 @@
     el.setAttribute('fill', 'url(#portal-layer-' + c + ')');
     corridorGroup.appendChild(el);
 
+    var isEntry = c === CORRIDOR_LAYERS - 1;
+    var faceSpec = isEntry ? FACE_ENTRY : FACE_INTERIOR;
+    var stops = gradient.querySelectorAll('stop');
+    stops[0].setAttribute('offset', SECTION_EDGE);
+    stops[1].setAttribute('offset', SECTION_EDGE + .002);
+    stops[2].setAttribute('offset', SECTION_EDGE + faceSpec.width);
+    stops[3].setAttribute('offset', SECTION_EDGE + faceSpec.width + .03);
+
     corridor.push({
       el: el,
       gradient: gradient,
-      stops: gradient.querySelectorAll('stop'),
+      stops: stops,
+      face: faceSpec,
       depth: CORRIDOR_LENGTH * (c + 1) / CORRIDOR_LAYERS, // distância à frente do arco
       share: c / (CORRIDOR_LAYERS - 1)                     // 0 = junto à saída, 1 = entrada
     });
@@ -351,7 +370,7 @@
     // A borda interna do arco ganha luz; a geometria não muda.
     face.style.opacity = light.toFixed(4);
     // Luz azulada no vão: cede lugar à paisagem conforme ela se define.
-    glow.style.opacity = (light * (1 - archOpen)).toFixed(4);
+    glow.style.opacity = (GLOW_OPACITY * light * (1 - archOpen)).toFixed(4);
     setAmbient(smooth(u, U.tone));
 
     setOpening(archOpen, columnOpen, smooth(u, U.hazeOut));
@@ -397,12 +416,15 @@
       var start = U.layers[0] + (1 - item.share) * span * .6;
       var visible = smooth(u, [start, start + span * .4]);
       var color = rgb(mixColor(nearExit, LAYER_NEAR_CAMERA, item.share));
-      // Dentro da seção: transparente; fora dela, a cor da camada — em transição longa, sem aresta.
-      item.stops[0].setAttribute('stop-color', color);
-      item.stops[1].setAttribute('stop-color', color);
-      item.stops[1].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
-      item.stops[2].setAttribute('stop-color', color);
-      item.stops[2].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
+      // Dentro da seção: transparente. Na borda: a face de pedra iluminada (espessura).
+      // Fora: a sombra da camada, que se acumula em direção às bordas da tela.
+      var faceOpacity = (item.face.opacity * visible).toFixed(4);
+      item.stops[1].setAttribute('stop-opacity', faceOpacity);
+      item.stops[2].setAttribute('stop-opacity', faceOpacity);
+      item.stops[3].setAttribute('stop-color', color);
+      item.stops[3].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
+      item.stops[4].setAttribute('stop-color', color);
+      item.stops[4].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
     }
   }
 
