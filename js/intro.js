@@ -203,11 +203,10 @@
       endBack: endScale
     };
 
-    // A paisagem distante cresce a partir do horizonte (composição da Home preservada);
-    // no scroll, o portal continua avançando pelo mesmo eixo da câmera.
-    var horizonOrigin = (w / 2) + 'px ' + horizonY + 'px';
-    landscape.style.transformOrigin = horizonOrigin;
-    landscapeNear.style.transformOrigin = horizonOrigin;
+    // Um único centro de expansão para tudo (portal e paisagem): o eixo da câmera.
+    // A paisagem usa matrizes explícitas (ver landscapeMatrix), por isso origem 0 0.
+    landscape.style.transformOrigin = '0 0';
+    landscapeNear.style.transformOrigin = '0 0';
     layer.style.transformOrigin = (w / 2) + 'px ' + vanishY + 'px';
   }
 
@@ -238,10 +237,25 @@
       frontPlane.style.display = 'none';
     }
 
-    var farScale = 1 + LANDSCAPE_ZOOM * u;
-    landscape.style.transform = 'scale(' + farScale.toFixed(4) + ')';
-    // A água próxima começa comprimida em direção ao horizonte e alcança o plano distante no fim.
-    landscapeNear.style.transform = 'scale(' + (farScale * (1 - NEAR_DEPTH * (1 - u))).toFixed(4) + ')';
+    // A paisagem se aproxima a partir do mesmo eixo da câmera; a água próxima,
+    // mais rápido que céu e montanhas. Em u = 1 ambas coincidem com a Home.
+    var far = 1 - LANDSCAPE_ZOOM * (1 - u);
+    landscape.style.transform = landscapeMatrix(far);
+    landscapeNear.style.transform = landscapeMatrix(far * (1 - NEAR_DEPTH * (1 - u)));
+  }
+
+  /* Enquadramento da paisagem: a Home a mostra ampliada (1 + LANDSCAPE_ZOOM) a partir
+     do horizonte. Sobre esse enquadramento, o movimento da câmera aplica uma escala
+     a a partir do eixo (w/2, vanishY). Composição: p → a·(1+Z)·p + deslocamento. */
+  function landscapeMatrix(a) {
+    var b = 1 + LANDSCAPE_ZOOM;
+    var cx = view.w / 2;
+    var homeX = (1 - b) * cx;
+    var homeY = (1 - b) * view.horizonY;
+    var x = a * homeX + (1 - a) * cx;
+    var y = a * homeY + (1 - a) * view.vanishY;
+    var scale = a * b;
+    return 'matrix(' + scale.toFixed(5) + ',0,0,' + scale.toFixed(5) + ',' + x.toFixed(2) + ',' + y.toFixed(2) + ')';
   }
 
   /* Iluminação do interior ao longo da profundidade.
@@ -320,8 +334,8 @@
     scrollQueued = false;
     var p = clamp01(window.scrollY / (view.h * .8));
     layer.style.transform = p ? 'scale(' + (1 + SCROLL_PORTAL_ZOOM * p).toFixed(4) + ')' : '';
-    landscape.style.transform = 'scale(' + (1 + LANDSCAPE_ZOOM + SCROLL_LANDSCAPE_ZOOM * p).toFixed(4) + ')';
-    landscapeNear.style.transform = 'scale(' + (1 + LANDSCAPE_ZOOM + SCROLL_NEAR_ZOOM * p).toFixed(4) + ')';
+    landscape.style.transform = landscapeMatrix(1 + SCROLL_LANDSCAPE_ZOOM * p);
+    landscapeNear.style.transform = landscapeMatrix(1 + SCROLL_NEAR_ZOOM * p);
   }
 
   function onScroll() {
