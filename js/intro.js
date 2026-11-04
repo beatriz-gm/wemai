@@ -94,7 +94,7 @@
   var CAMERA_END = 485;    // no mobile; em telas largas, mais perto (ver measure)
   var MOBILE_VIEW = .75;   // largura da tela / distância focal no mobile (referência)
 
-  var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65, sunX: .709 };
+  var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 };
   var LANDSCAPE_ZOOM = .05;   // quanto a paisagem distante cresce durante a travessia
   var NEAR_DEPTH = .14;       // quanto a água próxima está "comprimida" no início (paralaxe)
   var SCROLL_PORTAL_ZOOM = .22;
@@ -202,7 +202,8 @@
       w: w,
       h: h,
       horizonY: imageTop + IMAGE.h * fit * IMAGE.horizon,
-      sunLayoutX: imageLeft + IMAGE.w * fit * IMAGE.sunX,
+      // Foto no enquadramento da Home (antes da matriz da câmera): fonte da luz do túnel.
+      image: { x: imageLeft, y: imageTop, w: IMAGE.w * fit, h: IMAGE.h * fit },
       vanishY: vanishY,
       focal: focal,
       halfWidth: halfWidth,
@@ -280,7 +281,12 @@
         camera: camera,
         halfWidth: view.halfWidth,
         vaultRise: view.vaultRise,
-        sunX: frame.scale * view.sunLayoutX + frame.x,
+        photo: {
+          x: frame.scale * view.image.x + frame.x,
+          y: frame.scale * view.image.y + frame.y,
+          w: frame.scale * view.image.w,
+          h: frame.scale * view.image.h
+        },
         light: light,
         arch: smooth(p, P.arch),
         column: smooth(p, P.column),
@@ -461,7 +467,7 @@
     tunnel = window.WemaiTunnel.create(canvas, GEOMETRY, function () {
       tunnel = null;
       skip();
-    });
+    }, landscape);
   }
   measure();
   if (!tunnel) {
