@@ -22,9 +22,9 @@
   visibility: visible;
 }
 
-/* Antes do primeiro quadro, a tela já é o fundo claro da identidade. */
+/* Antes do primeiro quadro, a tela já é o fundo branco da identidade. */
 .intro-pending .portal:not(.is-ready) {
-  background: var(--white);
+  background: #FFFFFF;
 }
 
 .no-js .portal {
@@ -33,6 +33,13 @@
 
 .portal__mark {
   fill: var(--navy);
+}
+
+/* Frisos de luz do corredor: finos, quentes e discretos (cor e opacidade via JS). */
+.portal__rails line {
+  stroke: #E2C29C;
+  stroke-width: 1;
+  stroke-linecap: round;
 }
 
 /* --- Pular abertura ------------------------------------------------------- */

@@ -138,12 +138,12 @@
         <div class="portal" data-portal-layer>
           <svg class="portal__svg" focusable="false">
             <defs>
-              <!-- Luz ambiente: um pouco mais luminosa atrás do arco, levemente mais fria nas
-                   bordas. Diferença mínima — a tela inicial continua limpa. -->
+              <!-- Ambiente: branco puro na identidade. Com o avanço da câmera, js/intro.js leva
+                   estes stops aos tons do túnel (pedra quente junto à saída, fria nas bordas). -->
               <radialGradient id="portal-ambient" gradientUnits="userSpaceOnUse" cx="886.5" cy="330" r="2800" data-ambient>
-                <stop offset="0" stop-color="#FCFDFE"/>
-                <stop offset=".45" stop-color="#F9FBFC"/>
-                <stop offset="1" stop-color="#EEF2F6"/>
+                <stop offset="0" stop-color="#FFFFFF"/>
+                <stop offset=".45" stop-color="#FFFFFF"/>
+                <stop offset="1" stop-color="#FFFFFF"/>
               </radialGradient>
               <!-- Luminosidade azulada e difusa no vão do arco, antes de a paisagem aparecer. -->
               <radialGradient id="portal-glow" gradientUnits="userSpaceOnUse" cx="886.5" cy="340" r="340"
@@ -177,15 +177,14 @@
                 transparente dentro da seção e sombra/luz em degradê fora dela. O foco fica
                 no centro do arco e o círculo é deslocado muito para baixo, então a seção tem a
                 forma de uma abóbada com paredes que descem quase verticais — nunca se fecha
-                embaixo. gradientTransform estreita a seção horizontalmente. O stop claro logo
-                após a borda é um filete de luz suave: a linha arquitetônica da camada.
+                embaixo. gradientTransform define a largura da seção (ajustada ao formato da
+                tela pelo JS). A transição é longa e sem aresta: nenhuma camada desenha um anel.
               -->
               <radialGradient id="portal-layer" gradientUnits="userSpaceOnUse"
                 cx="886.5" cy="3346.5" r="3340" fx="886.5" fy="346.5"
                 gradientTransform="translate(886.5 346.5) scale(.2316 1) translate(-886.5 -346.5)" data-layer-gradient>
-                <stop offset=".86" stop-color="#5C6F86" stop-opacity="0"/>
-                <stop offset=".868" stop-color="#F4EBDF" stop-opacity="0"/>
-                <stop offset=".9" stop-color="#5C6F86" stop-opacity="0"/>
+                <stop offset=".8" stop-color="#5C6F86" stop-opacity="0"/>
+                <stop offset=".96" stop-color="#5C6F86" stop-opacity="0"/>
                 <stop offset="1" stop-color="#5C6F86" stop-opacity="0"/>
               </radialGradient>
 
@@ -206,6 +205,12 @@
 
             <!-- Corredor: o JS cria uma camada por profundidade, cada uma com seu degradê. -->
             <g data-corridor></g>
+
+            <!-- Frisos de luz: duas retas em perspectiva junto à base das paredes do corredor
+                 (da saída para as bordas da tela). Coordenadas de tela, calculadas pelo JS. -->
+            <g class="portal__rails" data-rails>
+              <line/><line/>
+            </g>
 
             <g data-plane="mark">
               <g class="portal__mark" data-mark>
