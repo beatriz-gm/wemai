@@ -1,34 +1,40 @@
 /* ==========================================================================
    WEMAI — Abertura: do símbolo ao horizonte
 
-   Modelo
-   Uma câmera em perspectiva avança em direção a uma passagem curta com a
-   geometria exata do arco da logo. A passagem tem dois planos:
-     - entrada: parede clara + arco + wordmark (a logo original);
-     - saída:   o mesmo vão, PASSAGE_DEPTH unidades mais distante.
-   A escala de cada plano é FOCAL / distância, então a entrada cresce mais
-   rápido que a saída e a profundidade surge naturalmente, sem efeitos.
-   A paisagem (imagem real) fica atrás de tudo e só aparece pelo vão.
+   Conceito
+   A logo inicia a transformação e o espaço inteiro ganha profundidade; o túnel
+   surge como continuação disso. O arco nunca é fechado: não há máscara com a
+   forma do vão, base nem piso.
 
-   A câmera anda num trilho: o eixo é um único ponto fixo da tela durante toda
-   a sequência. Não há rotação, inclinação, deslocamento lateral nem curvas
-   concorrentes — todos os planos seguem o mesmo progresso u.
+   Modelo
+   Uma câmera em perspectiva avança num trilho. Três elementos, todos em escala
+   FOCAL / distância a partir do mesmo eixo fixo da tela:
+     - entrada: a logo original (arco + wordmark + assinatura);
+     - camadas: contornos abertos do próprio arco, em linhas finas de baixa
+       opacidade, em várias profundidades — à frente e atrás da logo;
+     - saída: um campo de profundidade em degradê. As bordas da tela são paredes
+       próximas e claras, o centro se aprofunda e a saída para a paisagem se abre
+       sem contorno.
+   Não há rotação, inclinação, deslocamento lateral nem curvas concorrentes:
+   tudo segue o mesmo progresso u.
 
    Ritmo
-   A progressão da câmera é interpolada em escala logarítmica (zoom percebido
-   como constante) com uma curva de início quase imperceptível e chegada longa.
+   A câmera é interpolada em escala logarítmica (zoom percebido como constante),
+   com início quase imperceptível e chegada longa. Cores e sombras acompanham o
+   progresso da câmera, não o relógio: o centro escurece conforme a profundidade
+   se torna perceptível.
 
    Linha do tempo (ms) — cerca de 7,5 s até a interface assentar
      0    – 1400  Identidade: a logo surge e permanece intacta.
-     2200 – 7200  Câmera: aproximação → revelação → travessia → chegada.
-     2700 – 3900  Wordmark e assinatura se dissolvem.
-     2700 – 4500  Ao mesmo tempo, o vão se abre a partir do centro. O interior nasce
-                  nos tons do fundo claro, então o arco ganha profundidade sem contraste.
-     3000 – 5300  A névoa da saída se dissipa e a paisagem se define.
-     ~2900 – 5800 Materialidade (cor, sombra, luz lateral) acompanha a aproximação.
+     2200 – 7200  Câmera: aproximação → espaço → travessia → chegada.
+     0 →          Luz ambiente quase imperceptível: mais luminosa atrás do arco.
+     2700 – 3900  Wordmark e assinatura se dissolvem; luz azulada e difusa no vão.
+     2800 – 4300  As camadas aparecem, muito sutis, e passam a fluir para fora do quadro.
+     ~2900 – 5800 O espaço ganha materialidade: paredes claras, centro mais profundo.
+     3400 – 5500  A saída se abre em degradê e a paisagem se define; sua luz
+                  aquece a região do interior junto à saída.
      6200         A interface da Home começa a surgir.
-   Até 2700 nada é acrescentado à logo: a parede é um plano inteiro, sem recortes,
-   e a tela mostra apenas o SVG original.
+   Até 2700 a tela mostra apenas o SVG original sobre o fundo claro (com luz ambiente).
 
    Depois da abertura, o primeiro scroll avança a câmera mais um pouco usando
    apenas transform (composição na GPU), sem prender a rolagem.
@@ -46,21 +52,17 @@
   if (!hero || !layer || !landscape || !landscapeNear) return;
 
   var frontPlane = layer.querySelector('[data-plane="front"]');
-  var backPlane = layer.querySelector('[data-plane="back"]');
+  var exitPlane = layer.querySelector('[data-plane="exit"]');
   var mark = layer.querySelector('[data-mark]');
   var wordmark = layer.querySelector('[data-wordmark]');
-  var shade = layer.querySelector('[data-shade]');
   var face = layer.querySelector('[data-face]');
-  var wall = layer.querySelector('[data-wall]');
-  var wallPaths = layer.querySelectorAll('[data-wall-path]');
-  var revealStops = layer.querySelectorAll('[data-reveal-stop]');
-  var interior = layer.querySelector('[data-interior]');
-  var interiorStops = Array.prototype.map.call(interior.querySelectorAll('stop'), function (stop) {
-    return { el: stop, at: parseFloat(stop.getAttribute('offset')) };
-  });
+  var spaceStops = layer.querySelectorAll('[data-space] stop');
   var floorStops = layer.querySelectorAll('[data-floor] stop');
-  var sideLight = layer.querySelector('[data-side]');
   var haze = layer.querySelector('[data-haze]');
+  var glow = layer.querySelector('[data-glow]');
+  var ambientEdge = layer.querySelector('[data-ambient] stop:last-child');
+  var spaceLayers = layer.querySelectorAll('[data-space-layer]');
+  var ribTemplate = layer.querySelector('[data-rib-template]');
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   var playing = root.classList.contains('intro-pending');
@@ -68,7 +70,7 @@
   /* --- Geometria do arco original -----------------------------------------
      M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z */
   var ARC_X = 886.5;                       // eixo de simetria
-  var TIP_Y = 494.63;                      // base (reta entre as pontas)
+  var TIP_Y = 494.63;                      // altura das pontas
   var INNER_R = 252;
   var HALF_CHORD = (1102 - 671) / 2;
   var INNER_CENTER_Y = TIP_Y - Math.sqrt(INNER_R * INNER_R - HALF_CHORD * HALF_CHORD);
@@ -78,48 +80,67 @@
 
   /* --- Cena ------------------------------------------------------------------ */
   var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 }; // horizonte do mar na imagem
-  var PASSAGE_DEPTH = 140;   // profundidade da passagem, em unidades da logo
+  var PASSAGE_DEPTH = 140;   // distância entre a entrada (logo) e a saída, em unidades da logo
   // Onde a câmera para: distância até a saída, em profundidades da passagem.
-  // Acima de 1, ela para na soleira, com a moldura de entrada já além das bordas;
-  // assim o arco sai de cena durante a desaceleração, sem "varrer" o quadro.
+  // Acima de 1, ela para logo depois de a entrada sair do quadro, sem "varrê-lo".
   var CAMERA_STOP = 1.5;
-  var END_TOP = .035;        // topo do vão, ao final, como fração da altura da tela
+  var END_TOP = .035;        // referência do enquadramento final, como fração da altura da tela
   var LANDSCAPE_ZOOM = .05;  // quanto a paisagem distante cresce durante a travessia
   var NEAR_DEPTH = .14;      // quanto a água próxima está "comprimida" no início (paralaxe)
   var SCROLL_PORTAL_ZOOM = .22;
   var SCROLL_LANDSCAPE_ZOOM = .04;
   var SCROLL_NEAR_ZOOM = .07;
 
-  // Contornos da parede de entrada: plano inteiro (logo intacta) e com o vão aberto.
-  var WALL_SOLID = 'M-20000 -20000 H20000 V20000 H-20000 Z';
-  var WALL_OPEN = WALL_SOLID + ' M671 494.63 A261.5 261.5 0 1 1 1102 494.63 Z';
-
   var T = {
     markIn: [200, 1400],
     camera: [2200, 7200],
     wordmarkOut: [2700, 3900],
-    reveal: [2700, 4500],   // o vão começa a se abrir junto com a dissolução das letras
-    haze: [3000, 5300],     // a névoa da saída se dissipa e a paisagem se define
+    glow: [2600, 3800],     // luz azulada no vão, junto com a dissolução das letras
+    ribs: [2800, 4300],
+    exit: [3400, 5500],
     ui: 6200,
     imageWaitMax: 4000
   };
 
-  /* Materialidade: o interior nasce nos tons do fundo claro e ganha a cor do arco
-     conforme a câmera se aproxima (progresso da câmera, não do relógio). Assim o
-     escurecimento acompanha a profundidade percebida e nunca acontece de repente. */
-  var MATERIAL_RANGE = [.02, .62];
-  var INTERIOR_LIGHT = ['#FCF6EE', '#F3F5F7', '#E9EEF2', '#DFE6EC', '#D6DFE7', '#D0DAE3'];
-  var INTERIOR_MATERIAL = ['#F6E2C8', '#C6D1DB', '#8A9FB4', '#55708C', '#3A5672', '#304B67'];
-  var FLOOR_LIGHT = ['#F1F3F5', '#E6EBEF', '#DCE3E9'];
-  var FLOOR_MATERIAL = ['#8E9CAD', '#4F657D', '#2A4259'];
+  /* Campo de profundidade (stops do gradiente #portal-space, do centro da saída
+     para as bordas da tela). Começa inteiro na cor do fundo e ganha materialidade
+     com a aproximação. SPACE_OPEN: quanto cada stop fica transparente quando a
+     saída se abre (1 = paisagem totalmente visível). */
+  var MATERIAL_RANGE = [.03, .65];
+  var SPACE_LIGHT = '#FAFCFD';
+  var SPACE_MATERIAL = ['#F5E4CF', '#EEDCC8', '#B3BFCC', '#33506E', '#8DA0B5', '#E2E8EE'];
+  var SPACE_OPEN = [1, 1, .6, 0, 0, 0];
+  var FLOOR_MATERIAL = '#DCE3EA'; // piso próximo: claro, levemente frio
 
-  var REVEAL_REACH = .3; // alcance inicial da transparência a partir do centro do vão
+  /* Luz natural da paisagem: quando a saída se abre, a região do interior mais
+     próxima dela ganha um tom quente de pedra iluminada (peso por stop). */
+  var SPACE_SUNLIT = ['#F5E4CF', '#F2DEC8', '#E6D2BD', '#5E6F84', '#8DA0B5', '#E2E8EE'];
+  var SUN_WEIGHT = [0, .4, .55, .3, 0, 0];
+
+  // Luz ambiente da tela inicial: as bordas sombreiam levemente quando a transformação começa.
+  var AMBIENT_EDGE = ['#EEF2F6', '#E3E9EF'];
+
+  /* Camadas: profundidades em frações da passagem a partir da saída (0 = saída,
+     1 = entrada, onde está a logo — por isso não há camada em 1). Peso: as mais
+     distantes são mais discretas. */
+  var RIBS = [
+    { depth: 1 / 3, weight: .45 },
+    { depth: 2 / 3, weight: .65 },
+    { depth: 4 / 3, weight: 1 },
+    { depth: 5 / 3, weight: .9 },
+    { depth: 2, weight: .8 },
+    { depth: 7 / 3, weight: .7 },
+    { depth: 8 / 3, weight: .6 }
+  ];
+  var RIB_OPACITY = .24;
+  var RIB_ON_LIGHT = '#4E6680';  // linha sobre o fundo claro
+  var RIB_ON_DEEP = '#F1E3D2';   // linha sobre o espaço já aprofundado
 
   var view = {};
   var frameId = 0;
   var finished = !playing;
 
-  /* --- Curvas ------------------------------------------------------------- */
+  /* --- Curvas e cores ---------------------------------------------------- */
 
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function phase(t, range) { return clamp01((t - range[0]) / (range[1] - range[0])); }
@@ -130,16 +151,20 @@
     return [n >> 16, (n >> 8) & 255, n & 255];
   }
 
-  function mixColor(a, b, m) {
-    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * m) + ',' +
-      Math.round(a[1] + (b[1] - a[1]) * m) + ',' +
-      Math.round(a[2] + (b[2] - a[2]) * m) + ')';
+  // asArray: devolve [r, g, b] em vez de 'rgb(...)', para misturas encadeadas.
+  function mixColor(a, b, m, asArray) {
+    var c = [a[0] + (b[0] - a[0]) * m, a[1] + (b[1] - a[1]) * m, a[2] + (b[2] - a[2]) * m];
+    if (asArray) return c;
+    return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')';
   }
 
-  INTERIOR_LIGHT = INTERIOR_LIGHT.map(hexToRgb);
-  INTERIOR_MATERIAL = INTERIOR_MATERIAL.map(hexToRgb);
-  FLOOR_LIGHT = FLOOR_LIGHT.map(hexToRgb);
-  FLOOR_MATERIAL = FLOOR_MATERIAL.map(hexToRgb);
+  SPACE_LIGHT = hexToRgb(SPACE_LIGHT);
+  SPACE_MATERIAL = SPACE_MATERIAL.map(hexToRgb);
+  FLOOR_MATERIAL = hexToRgb(FLOOR_MATERIAL);
+  SPACE_SUNLIT = SPACE_SUNLIT.map(hexToRgb);
+  AMBIENT_EDGE = AMBIENT_EDGE.map(hexToRgb);
+  RIB_ON_LIGHT = hexToRgb(RIB_ON_LIGHT);
+  RIB_ON_DEEP = hexToRgb(RIB_ON_DEEP);
 
   function cubicBezier(x1, y1, x2, y2) {
     function at(t, a, b) { return ((1 - 3 * b + 3 * a) * t + (3 * b - 6 * a)) * t * t + 3 * a * t; }
@@ -159,6 +184,14 @@
   // Início quase imperceptível, aceleração suave e chegada longa.
   var cameraEase = cubicBezier(.55, 0, .2, 1);
 
+  /* --- Camadas ------------------------------------------------------------- */
+
+  var ribs = RIBS.map(function (rib, i) {
+    var el = i === 0 ? ribTemplate : ribTemplate.cloneNode(false);
+    if (i > 0) ribTemplate.parentNode.appendChild(el);
+    return { el: el, depth: rib.depth, weight: rib.weight };
+  });
+
   /* --- Medidas ----------------------------------------------------------- */
 
   function measure() {
@@ -170,8 +203,7 @@
     var imageTop = (h - IMAGE.h * fit) * IMAGE.posY;
     var horizonY = imageTop + IMAGE.h * fit * IMAGE.horizon;
 
-    // Final: o vão cobre a tela, com a base logo abaixo da borda inferior
-    // e o topo um pouco abaixo da borda superior (a arquitetura emoldura a cena).
+    // Escala final da saída: a mesma referência de enquadramento usada pela Home.
     var bottom = h + 8;
     var top = h * END_TOP;
     var endScale = (bottom - top) / (TIP_Y - INNER_TOP);
@@ -180,9 +212,9 @@
 
     /* Eixo da câmera (trilho). Um único ponto fixo na tela, do início ao fim:
        tudo se expande a partir dele, sem inclinação nem deslocamento lateral.
-       axisY (unidades da logo) é a altura do eixo dentro do vão; vanishY é onde
-       ele aparece na tela. São resolvidos para que (a) a logo comece centralizada
-       e (b) o enquadramento final seja o da Home:
+       axisY (unidades da logo) é a altura do eixo; vanishY é onde ele aparece
+       na tela. São resolvidos para que (a) a logo comece centralizada e (b) o
+       enquadramento final seja o da Home:
          início: vanishY + (LOGO_CENTER_Y - axisY) · startScale = 0,47 · h
          fim:    vanishY + (INNER_TOP - axisY) · endScale = top                 */
     var startOffset = h * .47 - LOGO_CENTER_Y * startScale;
@@ -190,7 +222,7 @@
     var vanishY = startOffset + axisY * startScale;
 
     var focal = endScale * CAMERA_STOP * PASSAGE_DEPTH;
-    var startBack = focal / (focal / startScale + PASSAGE_DEPTH);
+    var startExit = focal / (focal / startScale + PASSAGE_DEPTH);
 
     view = {
       w: w,
@@ -199,8 +231,8 @@
       vanishY: vanishY,
       axisY: axisY,
       focal: focal,
-      startBack: startBack,
-      endBack: endScale
+      startExit: startExit,
+      endExit: endScale
     };
 
     // Um único centro de expansão para tudo (portal e paisagem): o eixo da câmera.
@@ -213,29 +245,33 @@
   /* --- Câmera ---------------------------------------------------------------- */
 
   // Cada plano é uma ampliação em torno do eixo: (ARC_X, axisY) fica sempre em (w/2, vanishY).
-  function placePlane(plane, scale) {
+  function placePlane(el, scale) {
     var tx = view.w / 2 - ARC_X * scale;
     var ty = view.vanishY - view.axisY * scale;
-    plane.setAttribute('transform',
+    el.setAttribute('transform',
       'matrix(' + scale.toFixed(5) + ' 0 0 ' + scale.toFixed(5) + ' ' + tx.toFixed(2) + ' ' + ty.toFixed(2) + ')');
+  }
+
+  // Posiciona um elemento a `depth` profundidades da passagem à frente da saída.
+  // Quando ele fica atrás da câmera, é ocultado.
+  function placeAtDepth(el, exitDistance, depth) {
+    var distance = exitDistance - depth * PASSAGE_DEPTH;
+    if (distance <= view.focal / 200) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
+    placePlane(el, view.focal / distance);
   }
 
   // u = 0: logo; u = 1: chegada à Home.
   function setCamera(u) {
-    var backScale = view.startBack * Math.pow(view.endBack / view.startBack, u);
-    var frontDistance = view.focal / backScale - PASSAGE_DEPTH;
+    var exitScale = view.startExit * Math.pow(view.endExit / view.startExit, u);
+    var exitDistance = view.focal / exitScale;
 
-    placePlane(backPlane, backScale);
-
-    // Depois que a câmera cruza a entrada, ela fica fora de cena.
-    if (frontDistance > view.focal / 200) {
-      var frontScale = view.focal / frontDistance;
-      frontPlane.style.display = '';
-      placePlane(frontPlane, frontScale);
-      lightInterior(frontScale / backScale);
-    } else {
-      frontPlane.style.display = 'none';
-    }
+    placePlane(exitPlane, exitScale);
+    placeAtDepth(frontPlane, exitDistance, 1);
+    for (var i = 0; i < ribs.length; i++) placeAtDepth(ribs[i].el, exitDistance, ribs[i].depth);
 
     // A paisagem se aproxima a partir do mesmo eixo da câmera; a água próxima,
     // mais rápido que céu e montanhas. Em u = 1 ambas coincidem com a Home.
@@ -258,67 +294,53 @@
     return 'matrix(' + scale.toFixed(5) + ',0,0,' + scale.toFixed(5) + ',' + x.toFixed(2) + ',' + y.toFixed(2) + ')';
   }
 
-  /* Iluminação do interior ao longo da profundidade.
-     Em coordenadas do plano de saída, a borda de entrada é a mesma circunferência
-     ampliada k vezes a partir do eixo (ARC_X, axisY). Um gradiente radial com foco
-     nesse ponto percorre então o interior exatamente da saída (1/k) até a entrada (1). */
-  function lightInterior(k) {
-    var cy = view.axisY + (INNER_CENTER_Y - view.axisY) * k;
-    interior.setAttribute('fy', view.axisY.toFixed(2));
-    interior.setAttribute('cy', cy.toFixed(2));
-    interior.setAttribute('r', (INNER_R * k).toFixed(2));
-    var exit = 1 / k;
-    for (var i = 0; i < interiorStops.length; i++) {
-      interiorStops[i].el.setAttribute('offset', (exit + (1 - exit) * interiorStops[i].at).toFixed(4));
-    }
-  }
+  /* --- Aparência -------------------------------------------------------------- */
 
   function setAppearance(t, u) {
     mark.style.opacity = easeInOutSine(phase(t, T.markIn));
     wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
-    haze.style.opacity = 1 - easeInOutSine(phase(t, T.haze));
-    setMaterial(easeInOutSine(phase(u, MATERIAL_RANGE)));
 
-    // Revelação a partir do centro do vão: o centro clareia primeiro e a abertura
-    // se espalha até as bordas, como luz atravessando — nunca um ponto ou contorno nítido.
-    var p = easeInOutSine(phase(t, T.reveal));
-    setWall(p);
-    if (p > 0 && p < 1) {
-      revealStops[0].setAttribute('stop-opacity', p.toFixed(4));
-      revealStops[1].setAttribute('offset', (REVEAL_REACH + (1 - REVEAL_REACH) * p).toFixed(4));
-      revealStops[1].setAttribute('stop-opacity', clamp01((p - .3) / .7).toFixed(4));
-    }
-  }
-
-  // m = 0: tudo nos tons do fundo claro; m = 1: material, luz lateral e sombras completas.
-  function setMaterial(m) {
-    var i;
-    for (i = 0; i < interiorStops.length; i++) {
-      interiorStops[i].el.setAttribute('stop-color', mixColor(INTERIOR_LIGHT[i], INTERIOR_MATERIAL[i], m));
-    }
-    for (i = 0; i < floorStops.length; i++) {
-      floorStops[i].setAttribute('stop-color', mixColor(FLOOR_LIGHT[i], FLOOR_MATERIAL[i], m));
-    }
-    sideLight.style.opacity = m;
-    shade.style.opacity = m;
+    var m = easeInOutSine(phase(u, MATERIAL_RANGE));
+    var open = easeInOutSine(phase(t, T.exit));
+    var light = easeInOutSine(phase(t, T.glow));
+    setSpace(m, open);
+    setLight(light, open);
+    setRibs(m, easeInOutSine(phase(t, T.ribs)));
     face.style.opacity = m;
   }
 
-  /* A parede só ganha o vão quando a revelação começa. Antes disso é um plano
-     inteiro, sem nenhuma borda além das da própria logo; durante a revelação, uma
-     máscara única abre o vão; depois, o contorno externo do arco vira o recorte. */
-  var wallState = '';
-
-  function setWall(p) {
-    var state = p <= 0 ? 'solid' : p >= 1 ? 'open' : 'opening';
-    if (state === wallState) return;
-    wallState = state;
-    for (var i = 0; i < wallPaths.length; i++) {
-      wallPaths[i].setAttribute('d', state === 'open' ? WALL_OPEN : WALL_SOLID);
-      wallPaths[i].setAttribute('fill-rule', 'evenodd');
+  // m: materialidade (0 = fundo claro chapado); open: abertura da saída.
+  function setSpace(m, open) {
+    var i;
+    // Antes da transformação, só a névoa (cor do fundo) é desenhada: a tela é
+    // exatamente a logo original sobre o fundo claro.
+    var idle = m === 0 && open === 0;
+    for (i = 0; i < spaceLayers.length; i++) spaceLayers[i].style.display = idle ? 'none' : '';
+    for (i = 0; i < spaceStops.length; i++) {
+      var base = mixColor(SPACE_LIGHT, SPACE_MATERIAL[i], m, true);
+      spaceStops[i].setAttribute('stop-color', mixColor(base, SPACE_SUNLIT[i], open * SUN_WEIGHT[i]));
+      spaceStops[i].setAttribute('stop-opacity', (1 - SPACE_OPEN[i] * open).toFixed(4));
     }
-    if (state === 'opening') wall.setAttribute('mask', 'url(#portal-opening)');
-    else wall.removeAttribute('mask');
+    var floor = mixColor(SPACE_LIGHT, FLOOR_MATERIAL, m);
+    for (i = 0; i < floorStops.length; i++) floorStops[i].setAttribute('stop-color', floor);
+    // A névoa garante a tela inicial inteira na cor do fundo e se dissipa com a abertura.
+    haze.style.opacity = (1 - open).toFixed(4);
+  }
+
+  /* Evolução da luz: a luminosidade azulada surge no vão enquanto as letras se
+     dissolvem e cede lugar à luz da paisagem quando a saída se abre; as bordas do
+     fundo ganham uma sombra leve. */
+  function setLight(light, open) {
+    glow.style.opacity = (light * (1 - .75 * open)).toFixed(4);
+    ambientEdge.setAttribute('stop-color', mixColor(AMBIENT_EDGE[0], AMBIENT_EDGE[1], light));
+  }
+
+  function setRibs(m, visible) {
+    var color = mixColor(RIB_ON_LIGHT, RIB_ON_DEEP, m);
+    for (var i = 0; i < ribs.length; i++) {
+      ribs[i].el.style.stroke = color;
+      ribs[i].el.style.opacity = (RIB_OPACITY * ribs[i].weight * visible).toFixed(4);
+    }
   }
 
   function renderFinal() {
