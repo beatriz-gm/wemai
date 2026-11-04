@@ -393,6 +393,7 @@
   var lastNow = 0;
   var waited = 0;
   var slowFrames = 0;
+  var slowAtMinimum = 0;
   var revealed = false;
 
   function tick(now) {
@@ -406,11 +407,26 @@
       clock += dt;
     }
 
-    // Quadros lentos seguidos: o túnel passa a renderizar em resolução menor.
-    slowFrames = dt > 28 ? slowFrames + 1 : 0;
-    if (slowFrames === 8 && tunnel) tunnel.degrade();
+    // Com o túnel na tela, quadros lentos seguidos (abaixo de ~25 fps; 30 fps, como no modo
+    // de economia de bateria do iPhone, é aceito) baixam um degrau de resolução. Se já está
+    // na mínima e continua lento, a abertura dá lugar à Home em vez de se arrastar.
+    if (tunnel && clock > T.camera[0] + 500) {
+      slowFrames = dt > 40 ? slowFrames + 1 : 0;
+      if (slowFrames >= 8) {
+        slowFrames = 0;
+        if (!tunnel.degrade() && ++slowAtMinimum >= 2) {
+          skip();
+          return;
+        }
+      }
+    }
 
-    render(clock);
+    try {
+      render(clock);
+    } catch (e) {
+      skip();   // erro inesperado: segue para a Home, nunca fica parada
+      return;
+    }
     if (!revealed && clock >= T.ui) reveal();
 
     if (clock < T.camera[1]) frameId = requestAnimationFrame(tick);

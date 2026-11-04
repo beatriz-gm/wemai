@@ -96,7 +96,8 @@
     // Linha fina com antialiasing analítico: d = distância à linha, fp = tamanho do pixel.
     'float line(float d,float hw,float fp){float w=max(hw,fp*.5);return (hw/w)*(1.-smoothstep(w,w+fp,abs(d)));}',
     'float grid(float c,float s,float off,float hw,float fp){float q=c-off;return line(q-s*floor(q/s+.5),hw,fp);}',
-    'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+    // Hash só com aritmética (seno é caro em GPU de celular).
+    'float hash(vec2 p){vec3 q=fract(p.xyx*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}',
     // Ruído de valor: manchas amplas do microcimento e mistura das duas escalas da textura.
     'float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);',
     '  return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}',
@@ -176,6 +177,11 @@
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),vec3(1.,.955,.91),uLight*(1.-smoothstep(.2,1.,r))*.6);',
     '    gl_FragColor=vec4(haze*a,a)*uAlpha;return;',
+    '  }',
+    // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
+    '  if(uMat<.001){',
+    '    float h0=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
+    '    gl_FragColor=vec4(mix(vec3(1.),vec3(1.,.955,.91),uLight*h0*.45),1.)*uAlpha;return;',
     '  }',
 
     // Superfície: normal, albedo (linear) e base tangente para o relevo.
@@ -364,7 +370,8 @@
   }
 
   /* Cria o renderizador. Retorna null se WebGL não estiver disponível ou falhar;
-     quem chama segue sem o túnel (ver js/intro.js). onLost: perda do contexto.
+     quem chama segue sem o túnel (ver js/intro.js). onLost: o túnel não pode continuar
+     (contexto perdido, ou aparelho lento demais mesmo na resolução mínima).
      photo: a <img> da paisagem (fonte da luz e do reflexo). */
   function create(canvas, geometry, onLost, photo) {
     var gl, program;
@@ -494,25 +501,55 @@
       }
     }
 
-    canvas.addEventListener('webglcontextlost', function (e) {
-      e.preventDefault();
+    function fail() {
+      if (lost) return;
       lost = true;
       if (onLost) onLost();
+    }
+
+    canvas.addEventListener('webglcontextlost', function (e) {
+      e.preventDefault();
+      fail();
     });
 
+    /* Resolução. Base: até 2x no desktop (superamostragem em telas 1x) e até 1,5x em
+       telas de toque, com teto de pixels. Sobre ela, quality (0,5–1) se ajusta ao aparelho:
+       nos primeiros quadros do túnel, mede-se o tempo da GPU por quadro (leitura de 1 pixel
+       força a espera) e a resolução cai até caber no orçamento de um quadro fluido. */
     var size = { w: 0, h: 0 };
-    var maxDpr = 2;
-    var MAX_PIXELS = 2.6e6;   // teto de pixels do canvas (desktop grande)
+    var MAX_PIXELS = 2.6e6;
+    var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    var quality = 1, MIN_QUALITY = .5;
+    var BUDGET = 12;            // ms de GPU por quadro
+    var samples = [], probe = new Uint8Array(4), heavyFrames = 0;
+
+    function resize(w, h) {
+      var ratio = window.devicePixelRatio || 1;
+      var base = touch ? Math.min(1.5, ratio) : Math.min(2, Math.max(1.5, ratio));
+      var dpr = Math.min(base, Math.sqrt(MAX_PIXELS / (w * h))) * quality;
+      size = { w: w, h: h };
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      if (!lost) gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    // Quadros 2 a 4 com o túnel visível (o 1º pode incluir o envio de texturas).
+    function calibrate(ms) {
+      heavyFrames++;
+      if (heavyFrames < 2 || heavyFrames > 4) return;
+      samples.push(ms);
+      if (samples.length < 3) return;
+      var best = Math.min(samples[0], samples[1], samples[2]);
+      if (best <= BUDGET) return;
+      // O custo acompanha o número de pixels (quality²).
+      var q = quality * Math.sqrt(BUDGET / best);
+      if (q < MIN_QUALITY * .7) { fail(); return; }   // nem na resolução mínima seria fluido
+      q = Math.max(MIN_QUALITY, q);
+      if (q < quality - .02) { quality = q; resize(size.w, size.h); }
+    }
 
     return {
-      resize: function (w, h) {
-        // Até 2x: bordas nítidas (superamostragem em telas 1x), com teto de pixels.
-        var dpr = Math.min(maxDpr, Math.max(1.5, window.devicePixelRatio || 1), Math.sqrt(MAX_PIXELS / (w * h)));
-        size = { w: w, h: h };
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        if (!lost) gl.viewport(0, 0, canvas.width, canvas.height);
-      },
+      resize: resize,
       // s: estado da cena (câmera, luz, abertura, posição da foto) calculado por js/intro.js.
       render: function (s) {
         if (lost) return;
@@ -536,13 +573,22 @@
         gl.uniform4f(u.uPh, s.photo.x, s.photo.y, s.photo.w, s.photo.h);
         gl.uniform1f(u.uPhOk, photoOk ? 1 : 0);
         gl.uniform1f(u.uTexOk, texCount === 2 ? 1 : 0);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        if (s.matter > 0 && heavyFrames < 4) {
+          var t0 = performance.now();
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, probe);
+          calibrate(performance.now() - t0);
+        } else {
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
       },
-      // Aparelho lento: menos resolução, mesma cena.
+      // Quadros lentos durante a abertura: um degrau a menos de resolução. Retorna false
+      // quando já está na mínima.
       degrade: function () {
-        if (maxDpr <= 1) return;
-        maxDpr = 1;
-        this.resize(size.w, size.h);
+        if (quality <= MIN_QUALITY) return false;
+        quality = Math.max(MIN_QUALITY, quality * .75);
+        resize(size.w, size.h);
+        return true;
       },
       destroy: function () {
         var ext = !lost && gl.getExtension('WEBGL_lose_context');
