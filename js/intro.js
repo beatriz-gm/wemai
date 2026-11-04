@@ -253,29 +253,19 @@
 
   /* --- Quadro -------------------------------------------------------------- */
 
-  // t: tempo da abertura (ms). Retorna o progresso p da câmera.
-  function render(t) {
+  // Câmera e cena do túnel no instante t (ms), sem tocar no DOM.
+  function sceneAt(t) {
     var p = phase(t, T.camera);
     var camera = cameraDistance(p);
     var travel = Math.log(CAMERA_START / camera) / Math.log(CAMERA_START / view.cameraEnd);
-
-    placePlane(markPlane, view.focal / camera);
-    mark.style.opacity = easeInOutSine(phase(t, T.markIn));
-    wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
-    var light = easeInOutSine(phase(t, T.light));
-    face.style.opacity = light.toFixed(4);   // a borda interna do arco ganha luz
-    setTips(smooth(p, P.tips));
-    setArcTone(smooth(p, P.arcTone));
-    arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
-
-    // A paisagem se aproxima a partir do mesmo eixo; a água próxima, mais rápido.
     var far = 1 - LANDSCAPE_ZOOM * (1 - travel);
-    landscape.style.transform = landscapeMatrix(far);
-    landscapeNear.style.transform = landscapeMatrix(far * (1 - NEAR_DEPTH * (1 - travel)));
-
-    if (tunnel) {
-      var frame = landscapeFrame(far);
-      tunnel.render({
+    var frame = landscapeFrame(far);
+    return {
+      p: p,
+      camera: camera,
+      travel: travel,
+      far: far,
+      tunnel: {
         vanishY: view.vanishY,
         focal: view.focal,
         camera: camera,
@@ -287,15 +277,38 @@
           w: frame.scale * view.image.w,
           h: frame.scale * view.image.h
         },
-        light: light,
+        light: easeInOutSine(phase(t, T.light)),
         arch: smooth(p, P.arch),
         column: smooth(p, P.column),
         matter: smooth(p, P.matter),
         joints: smooth(p, P.joints),
         strips: smooth(p, P.strips),
         alpha: 1 - smooth(p, P.fade)
-      });
-    }
+      }
+    };
+  }
+
+  // t: tempo da abertura (ms). Retorna o progresso p da câmera.
+  function render(t) {
+    var scene = sceneAt(t);
+    var p = scene.p;
+    var camera = scene.camera;
+    var travel = scene.travel;
+
+    placePlane(markPlane, view.focal / camera);
+    mark.style.opacity = easeInOutSine(phase(t, T.markIn));
+    wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
+    face.style.opacity = scene.tunnel.light.toFixed(4);   // a borda interna do arco ganha luz
+    setTips(smooth(p, P.tips));
+    setArcTone(smooth(p, P.arcTone));
+    arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
+
+    // A paisagem se aproxima a partir do mesmo eixo; a água próxima, mais rápido.
+    var far = scene.far;
+    landscape.style.transform = landscapeMatrix(far);
+    landscapeNear.style.transform = landscapeMatrix(far * (1 - NEAR_DEPTH * (1 - travel)));
+
+    if (tunnel) tunnel.render(scene.tunnel);
     return p;
   }
 
@@ -394,6 +407,8 @@
   var waited = 0;
   var slowFrames = 0;
   var slowAtMinimum = 0;
+  var calibrated = false;
+  var CALIBRATION_TIME = 4300;   // túnel inteiro na tela (quadro 5 do storyboard)
   var revealed = false;
 
   function tick(now) {
@@ -405,6 +420,14 @@
       waited += dt;
     } else {
       clock += dt;
+    }
+
+    // Enquanto a logo está sozinha na tela, o túnel mede o próprio custo fora da tela (um
+    // quadro de cada vez, num momento típico da travessia) e fixa a resolução antes de
+    // aparecer: sem engasgos nem troca de resolução durante o movimento.
+    if (tunnel && !calibrated && clock >= 300 && (tunnel.ready() || clock >= 1000)) {
+      calibrated = tunnel.calibrate(sceneAt(CALIBRATION_TIME).tunnel);
+      if (!tunnel) return;   // lento demais: já seguiu para a Home
     }
 
     // Com o túnel na tela, quadros lentos seguidos (abaixo de ~25 fps; 30 fps, como no modo
