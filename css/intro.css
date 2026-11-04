@@ -1,7 +1,7 @@
 /* ==========================================================================
    WEMAI — Portal e abertura
-   O SVG do portal vive dentro da Home: durante a abertura ele começa como a
-   logo sobre fundo claro e termina como a arquitetura que emoldura a paisagem.
+   O portal vive dentro da Home: durante a abertura começa como a logo sobre
+   fundo branco e se torna o túnel por onde a câmera chega à paisagem.
    ========================================================================== */
 
 .portal {
@@ -22,6 +22,19 @@
   visibility: visible;
 }
 
+/* Túnel 3D (WebGL): só existe durante a abertura; o JS o remove ao final. */
+.portal__tunnel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+}
+
+.portal.is-ready .portal__tunnel {
+  visibility: visible;
+}
+
 /* Antes do primeiro quadro, a tela já é o fundo branco da identidade. */
 .intro-pending .portal:not(.is-ready) {
   background: #FFFFFF;
@@ -33,13 +46,6 @@
 
 .portal__mark {
   fill: var(--navy);
-}
-
-/* Frisos de luz do corredor: finos, quentes e discretos (cor e opacidade via JS). */
-.portal__rails line {
-  stroke: #E2C29C;
-  stroke-width: 1;
-  stroke-linecap: round;
 }
 
 /* --- Pular abertura ------------------------------------------------------- */

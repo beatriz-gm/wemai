@@ -59,6 +59,7 @@
   <link rel="stylesheet" href="css/hero.css">
   <link rel="stylesheet" href="css/intro.css">
 
+  <script src="js/intro-tunnel.js" defer></script>
   <script src="js/intro.js" defer></script>
   <script src="js/nav.js" defer></script>
 </head>
@@ -111,7 +112,7 @@
          01 — Abertura e Home
          Camadas independentes, de trás para frente:
          1. paisagem (img/home-paisagem.webp)
-         2. arquitetura do portal + logo original (SVG controlado por js/intro.js)
+         2. arquitetura do portal (WebGL) + logo original (SVG), controlados por js/intro.js
          3. véu de leitura
          4. interface
          ============================================================ -->
@@ -124,103 +125,43 @@
 
         <!--
           Portal. Paths da logo copiados sem alteração de brand/wemai-logo-principal.svg.
-          Como no storyboard, o arco é a SAÍDA, ao fundo; entre a câmera e ele nasce um
-          corredor curto. Todos os elementos são projetados pela mesma câmera em trilho,
-          cada um com a escala da sua profundidade (FOCAL / distância):
-          - saída: névoa com luz ambiente, aberta em degradê no vão do arco (e, depois,
-            abaixo dele, sem base), e a luz azulada;
-          - corredor: camadas em profundidades diferentes. Cada uma cobre tudo fora da seção
-            (abóbada no círculo do arco + paredes retas, aberta embaixo); sobrepostas, dão
-            sombra que cresce em direção à câmera e linhas sutis de perspectiva;
-          - a logo original, no plano da saída.
-          O arco nunca é fechado: não há base, piso nem círculo completo.
+          Como no storyboard, o arco é a borda superior do vão da SAÍDA, ao fundo de um
+          túnel curto. O túnel é 3D real (canvas WebGL, js/intro-tunnel.js): fachada,
+          piso, paredes, abóbada e a parede do fundo com o vão, que desce das pontas do
+          arco até o piso — as pontas nunca se unem. A logo (SVG) é projetada pela mesma
+          câmera, no plano da parede do fundo. Fora da abertura, o canvas não existe.
         -->
         <div class="portal" data-portal-layer>
+          <canvas class="portal__tunnel" data-tunnel></canvas>
           <svg class="portal__svg" focusable="false">
             <defs>
-              <!-- Ambiente: branco puro na identidade. Com o avanço da câmera, js/intro.js leva
-                   estes stops aos tons do túnel (pedra quente junto à saída, fria nas bordas). -->
-              <radialGradient id="portal-ambient" gradientUnits="userSpaceOnUse" cx="886.5" cy="330" r="2800" data-ambient>
-                <stop offset="0" stop-color="#FFFFFF"/>
-                <stop offset=".45" stop-color="#FFFFFF"/>
-                <stop offset="1" stop-color="#FFFFFF"/>
-              </radialGradient>
-              <!-- Luminosidade azulada e difusa no vão do arco, antes de a paisagem aparecer. -->
-              <radialGradient id="portal-glow" gradientUnits="userSpaceOnUse" cx="886.5" cy="340" r="340"
-                gradientTransform="translate(886.5 340) scale(1 1.12) translate(-886.5 -340)">
-                <stop offset="0" stop-color="#BED8EE" stop-opacity=".9"/>
-                <stop offset=".55" stop-color="#D2E4F3" stop-opacity=".45"/>
-                <stop offset="1" stop-color="#E6EEF6" stop-opacity="0"/>
-              </radialGradient>
-
-              <!-- Abertura da saída (máscara de luminância: branco = névoa, preto = paisagem).
-                   O vão do arco abre primeiro; a coluna abaixo dele, depois — sem base. -->
-              <radialGradient id="portal-opening-arch" gradientUnits="userSpaceOnUse" cx="886.5" cy="346.5" r="300">
-                <stop offset="0" stop-color="#000" stop-opacity="0" data-opening-arch/>
-                <stop offset=".72" stop-color="#000" stop-opacity="0" data-opening-arch/>
-                <stop offset="1" stop-color="#000" stop-opacity="0"/>
-              </radialGradient>
-              <linearGradient id="portal-opening-column" gradientUnits="userSpaceOnUse" x1="560" y1="0" x2="1213" y2="0">
-                <stop offset="0" stop-color="#000" stop-opacity="0"/>
-                <stop offset=".32" stop-color="#000" stop-opacity="0" data-opening-column/>
-                <stop offset=".68" stop-color="#000" stop-opacity="0" data-opening-column/>
-                <stop offset="1" stop-color="#000" stop-opacity="0"/>
-              </linearGradient>
-              <mask id="portal-opening" maskUnits="userSpaceOnUse" x="-20000" y="-20000" width="40000" height="40000">
-                <rect x="-20000" y="-20000" width="40000" height="40000" fill="#fff"/>
-                <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-opening-arch)"/>
-                <rect x="560" y="346.5" width="653" height="20000" fill="url(#portal-opening-column)"/>
-              </mask>
-
-              <!--
-                Modelo de camada do corredor (o JS clona um por profundidade). Sem bordas:
-                transparente dentro da seção e sombra/luz em degradê fora dela. O foco fica
-                no centro do arco e o círculo é deslocado muito para baixo, então a seção tem a
-                forma de uma abóbada com paredes que descem quase verticais — nunca se fecha
-                embaixo. gradientTransform define a largura da seção (ajustada ao formato da
-                tela pelo JS). Logo após a borda da seção, uma faixa de pedra iluminada (a face
-                da camada); depois, a sombra. O JS define a espessura dessa faixa: larga na
-                entrada do corredor, um filete no interior.
-              -->
-              <radialGradient id="portal-layer" gradientUnits="userSpaceOnUse"
-                cx="886.5" cy="3346.5" r="3340" fx="886.5" fy="346.5"
-                gradientTransform="translate(886.5 346.5) scale(.2316 1) translate(-886.5 -346.5)" data-layer-gradient>
-                <stop offset=".86" stop-color="#F2E8DC" stop-opacity="0"/>
-                <stop offset=".862" stop-color="#F2E8DC" stop-opacity="0"/>
-                <stop offset=".872" stop-color="#F2E8DC" stop-opacity="0"/>
-                <stop offset=".9" stop-color="#5C6F86" stop-opacity="0"/>
-                <stop offset="1" stop-color="#5C6F86" stop-opacity="0"/>
-              </radialGradient>
-
               <!-- Luz no arco: da borda externa azul-marinho à borda interna mais clara, como
-                   luz natural vinda do vão. Só a cor muda; a geometria é a original. -->
+                   luz natural vinda do vão. Durante a travessia, js/intro.js leva estas cores
+                   (e a do arco) ao tom de pedra iluminada do túnel. Só a cor muda; a geometria
+                   é a original. -->
               <radialGradient id="portal-face" gradientUnits="userSpaceOnUse" cx="886.5" cy="364" r="290">
-                <stop offset=".869" stop-color="#7FA2C4"/>
-                <stop offset=".9" stop-color="#3D6389"/>
-                <stop offset=".955" stop-color="#0B1F33"/>
+                <stop offset=".869" stop-color="#7FA2C4" data-face-stop/>
+                <stop offset=".9" stop-color="#3D6389" data-face-stop/>
+                <stop offset=".955" stop-color="#0B1F33" data-face-stop/>
               </radialGradient>
+
+              <!-- Pontas do arco sobre o vão: abaixo do centro, o arco curva para dentro da
+                   largura do vão (x = 886.5 ± 252). Com a formação do túnel, só esse trecho se
+                   dissolve (opacidade via JS) e o arco termina rente às ombreiras. O path da
+                   logo não muda. -->
+              <mask id="portal-tips" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="0" y="0" width="1800" height="1000">
+                <rect x="0" y="0" width="1800" height="1000" fill="#fff"/>
+                <rect x="634.5" y="364" width="504" height="636" fill="#000" fill-opacity="0" data-tips-fade/>
+              </mask>
             </defs>
-
-            <g data-plane="exit">
-              <!-- Névoa com luz ambiente: cobre tudo na identidade; abre-se no vão com a aproximação. -->
-              <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-ambient)" data-haze/>
-              <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#portal-glow)" opacity="0" data-glow/>
-            </g>
-
-            <!-- Corredor: o JS cria uma camada por profundidade, cada uma com seu degradê. -->
-            <g data-corridor></g>
-
-            <!-- Frisos de luz: duas retas em perspectiva junto à base das paredes do corredor
-                 (da saída para as bordas da tela). Coordenadas de tela, calculadas pelo JS. -->
-            <g class="portal__rails" data-rails>
-              <line/><line/>
-            </g>
 
             <g data-plane="mark">
               <g class="portal__mark" data-mark>
-                <path d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
-                <!-- Luz no arco: só aparece depois que a transformação começa (a geometria é a original). -->
-                <path fill="url(#portal-face)" opacity="0" data-face d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                <g data-arc>
+                  <path d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                  <!-- Luz no arco: só aparece depois que a transformação começa (a geometria é a original). -->
+                  <path fill="url(#portal-face)" opacity="0" data-face d="M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z"/>
+                </g>
                 <g data-wordmark>
                   <g>
                     <path d="M340.42 578 L388.15 703.52 L438.53 578 L451.42 578 L499.1 703.39 L548.55 578 L561.45 578 L505.45 720 L492.58 720 L444.85 594.48 L394.47 720 L381.58 720 L327.58 578 Z"/>

@@ -1,41 +1,35 @@
 /* ==========================================================================
    WEMAI — Abertura: do símbolo ao horizonte
 
-   Sequência (storyboard): logo → luz → profundidade → túnel → travessia →
-   paisagem → Home, numa única transformação contínua.
+   Sequência (storyboard): logo → primeira luz → paisagem surgindo → espaço
+   nascendo → profundidade → travessia → saída → Home, num único movimento.
 
    Modelo
-   Uma câmera em perspectiva avança num trilho, num eixo fixo da tela. Como no
-   storyboard, o arco da logo é a SAÍDA, ao fundo; entre a câmera e ele nasce um
-   corredor curto. Cada elemento tem a escala da sua profundidade
-   (FOCAL / distância), então os planos se movem em proporções diferentes:
-     - entrada: a camada do corredor mais próxima da câmera, que atravessa o
-       quadro primeiro;
-     - interior: camadas intermediárias — abóbada e paredes, abertas embaixo (sem
-       piso nem base). Cada seção tem borda definida e uma face de pedra iluminada:
-       larga na entrada (espessura), um filete no interior; frisos de luz nas paredes;
-     - saída: a logo original, a névoa que se abre no vão e a paisagem.
-   Não há rotação, inclinação, deslocamento lateral nem curvas concorrentes:
-   tudo segue o mesmo progresso u.
+   Uma câmera avança num trilho, no eixo central, sem rotação nem desvio, por
+   dentro de um túnel real (js/intro-tunnel.js, WebGL): piso, paredes, abóbada e,
+   ao fundo, a parede com o vão.
+   O arco da logo (SVG oficial, sem alterações) fica sobre a borda superior
+   desse vão, projetado pela mesma câmera — por isso os dois nunca se separam.
+   O vão desce das pontas do arco até o piso, sem nunca unir as pontas.
 
    Luz
-   Ambiente quase imperceptível na identidade. Com a dissolução das letras, a
-   borda interna do arco ganha luz e uma luminosidade azulada surge no vão. Com a
-   aproximação, a paisagem se define e aquece as camadas junto à saída.
+   Tudo começa branco (as superfícies existem, mas estão totalmente expostas).
+   Com a aproximação, a exposição baixa de forma contínua: a geometria ganha
+   tom, contraste, juntas e frisos discretos. A paisagem aparece primeiro no
+   vão do arco, depois abaixo dele, e ilumina o túnel a partir do fundo.
 
-   Linha do tempo (ms) — cerca de 7 s até a interface assentar
-     0    – 1300  Identidade: a logo surge sobre branco puro e permanece intacta.
-     1900 – 6900  Câmera: aproximação → espaço → travessia → chegada. Desde o primeiro
-                  avanço, o branco assume os tons do túnel.
-     2400 – 3600  Wordmark e assinatura se dissolvem; o arco e o vão ganham luz.
-     ~2000 –      As camadas do corredor surgem uma a uma; frisos de luz em perspectiva
-                  marcam as paredes e se dissolvem antes da chegada.
-     ~2200 – 5900 A paisagem aparece primeiro no vão do arco, depois abaixo dele.
-     5900         A interface da Home começa a surgir.
-   Até 1900 a tela mostra apenas o SVG original sobre branco.
+   Linha do tempo (ms) — cerca de 7 s
+     0    – 1300  Identidade: a logo completa surge sobre branco.
+     1300 – 7000  Câmera: aproximação → entrada → travessia → chegada.
+     1600 – 2900  Primeira luz no arco; 1700 – 2900 o texto se dissolve.
+     ~1800 –      Junto com a aproximação: a paisagem surge no vão e as paredes do
+                  túnel começam a se formar ao redor.
+     ~3600 – 5300 O arco assume o tom da pedra e se funde ao portal (fica o contorno).
+     6200         A interface da Home começa a surgir.
 
-   Depois da abertura, o primeiro scroll avança a câmera mais um pouco usando
-   apenas transform (composição na GPU), sem prender a rolagem.
+   Sem WebGL (ou se o contexto gráfico for perdido), a abertura dá lugar à Home
+   com um esmaecimento curto. Depois da abertura, o primeiro scroll avança a
+   câmera mais um pouco (transform na GPU), sem prender a rolagem.
    ========================================================================== */
 
 (function () {
@@ -49,44 +43,58 @@
   var skipButton = document.querySelector('[data-intro-skip]');
   if (!hero || !layer || !landscape || !landscapeNear) return;
 
-  var exitPlane = layer.querySelector('[data-plane="exit"]');
+  var canvas = layer.querySelector('[data-tunnel]');
   var markPlane = layer.querySelector('[data-plane="mark"]');
   var mark = layer.querySelector('[data-mark]');
   var wordmark = layer.querySelector('[data-wordmark]');
   var face = layer.querySelector('[data-face]');
-  var haze = layer.querySelector('[data-haze]');
-  var glow = layer.querySelector('[data-glow]');
-  var ambientStops = layer.querySelectorAll('[data-ambient] stop');
-  var openingArch = layer.querySelectorAll('[data-opening-arch]');
-  var openingColumn = layer.querySelectorAll('[data-opening-column]');
-  var corridorGroup = layer.querySelector('[data-corridor]');
-  var layerGradient = layer.querySelector('[data-layer-gradient]');
-  var railLines = layer.querySelectorAll('[data-rails] line');
+  var arc = layer.querySelector('[data-arc]');
+  var tipsFade = layer.querySelector('[data-tips-fade]');
+  var faceStops = layer.querySelectorAll('[data-face-stop]');
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   var playing = root.classList.contains('intro-pending');
 
   /* --- Geometria do arco original -----------------------------------------
      M671 494.63 A261.5 261.5 0 1 1 1102 494.63 A252 252 0 1 0 671 494.63 Z
-     Círculo externo: centro (886.5, 346.5), raio 261.5. */
+     Círculo externo: centro (886.5, 346.5), raio 261.5. Círculo interno:
+     centro (886.5, 364), raio 252. As pontas ficam em x = 886.5 ± 215.5. */
   var ARC_X = 886.5;
   var ARC_TOP = 85;
   var OUTER_R = 261.5;
   var LOGO_WIDTH = 1445 - 327.58;          // largura desenhada da logo
   var LOGO_CENTER_Y = (85 + 821) / 2;
 
-  /* --- Cena ------------------------------------------------------------------ */
-  var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65 }; // horizonte do mar na imagem
-  var AXIS_Y = 300;           // altura do eixo da câmera dentro do vão (unidades da logo)
-  var CORRIDOR_LENGTH = 340;  // comprimento do corredor diante do arco (unidades da logo)
-  var CORRIDOR_LAYERS = 7;
-  // Meia-largura da seção do corredor no mobile: um pouco maior que o arco (ver
-  // #portal-layer). Em telas mais largas, a seção se alarga na proporção da tela.
-  var CORRIDOR_R = 340;
-  var CORRIDOR_BASE_ASPECT = .62;
-  // No instante em que a entrada do corredor cruza as laterais da tela, o arco
-  // ocupa esta fração da largura da entrada (define a perspectiva da cena).
-  var ENTRY_PASS_RATIO = .58;
+  /* --- Arquitetura (unidades da logo) ---------------------------------------
+     O vão da parede do fundo segue a borda interna do arco e, da sua largura
+     máxima, desce em ombreiras verticais até o piso: a mesma largura do arco em
+     toda a altura. O túnel repete esse perfil, um pouco maior (abóbada
+     concêntrica ao arco) e se estende por trás da câmera: desde que a estrutura se
+     forma, ela já está dentro do túnel. A câmera fica na altura do centro do vão,
+     então a saída permanece centralizada na tela durante a aproximação. */
+  var GEOMETRY = {
+    eye: 442,            // altura da câmera (o ponto de fuga): centro do vão
+    floor: 800,
+    spring: 346.5,       // onde a abóbada nasce das paredes (centro do arco)
+    length: 2700,        // além da câmera: ela já começa dentro do túnel (sem fachada à vista)
+    reveal: 22,          // espessura do vão
+    arcCenterY: 346.5,
+    outerR: OUTER_R,
+    innerCenterY: 364,
+    innerR: 252,
+    jambX: 252,          // ombreiras: largura máxima do círculo interno do arco
+    jambY: 364
+  };
+  var HALF_WIDTH = 285;   // meia-largura do túnel no mobile (o arco tem 261.5)
+
+  /* --- Câmera ---------------------------------------------------------------
+     Distância da câmera à parede do fundo: do enquadramento da identidade até o
+     vão ocupar a tela. O avanço é contínuo, com início e chegada suaves. */
+  var CAMERA_START = 2400;
+  var CAMERA_END = 485;    // no mobile; em telas largas, mais perto (ver measure)
+  var MOBILE_VIEW = .75;   // largura da tela / distância focal no mobile (referência)
+
+  var IMAGE = { w: 941, h: 1672, posX: .58, posY: .5, horizon: .65, sunX: .709 };
   var LANDSCAPE_ZOOM = .05;   // quanto a paisagem distante cresce durante a travessia
   var NEAR_DEPTH = .14;       // quanto a água próxima está "comprimida" no início (paralaxe)
   var SCROLL_PORTAL_ZOOM = .22;
@@ -95,63 +103,39 @@
 
   var T = {
     markIn: [200, 1300],
-    camera: [1900, 6900],
-    wordmarkOut: [2400, 3600],
-    light: [2300, 3500],     // luz no arco e no vão, junto com a dissolução das letras
-    ui: 5900,
+    camera: [1300, 7000],
+    wordmarkOut: [1700, 2900],
+    light: [1600, 2900],     // primeira luz no arco, junto com a dissolução das letras
+    ui: 6200,
     imageWaitMax: 4000
   };
 
-  // Progresso da câmera (u) em que cada efeito acontece: tudo acompanha a aproximação.
-  var U = {
-    tone: [0, .45],          // o branco assume os tons do túnel desde o primeiro avanço
-    archOpen: [.05, .5],     // a paisagem se define no vão do arco
-    columnOpen: [.25, .7],   // e depois abaixo dele, sem base
-    layers: [.02, .35],      // janela em que as camadas surgem, uma a uma
-    rails: [.06, .3],        // os frisos aparecem
-    railsOut: [.68, .9],     // e se dissolvem antes da chegada
-    warm: [.2, .75],         // a luz da paisagem aquece as camadas junto à saída
-    hazeOut: [.82, 1]        // a névoa restante se dissipa na chegada
+  // Progresso do tempo da câmera (p) em que cada mudança acontece.
+  var P = {
+    // Paisagem e túnel nascem juntos, com o início da aproximação.
+    arch: [.08, .4],         // a paisagem surge no vão do arco, quase imperceptível no início
+    column: [.24, .55],      // e depois abaixo dele, entre as ombreiras
+    matter: [.08, .58],      // as superfícies saem do branco e ganham tom e contraste
+    tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
+    arcTone: [.26, .5],      // o arco passa do azul da marca ao tom de pedra iluminada do túnel
+    arcMerge: [.5, .7],      // e então se funde ao portal: resta só o contorno da abertura
+    joints: [.24, .6],
+    strips: [.32, .66],
+    fade: [.9, 1]            // o que restar da arquitetura nas bordas se dissolve na chegada
   };
 
-  /* Corredor: cor e opacidade de cada camada, da saída (índice 0) para a câmera.
-     Junto à saída, pedra clara que esquenta com a luz da paisagem; perto da câmera,
-     sombra fria. Sobrepostas, escurecem o espaço em direção às bordas da tela. */
-  var LAYER_NEAR_EXIT = '#DDD4C9';
-  var LAYER_NEAR_EXIT_WARM = '#E6CDB1';
-  var LAYER_NEAR_CAMERA = '#4C5F76';
-  var LAYER_OPACITY = .17;
-
-  /* Face de cada camada: faixa de pedra iluminada logo após a borda da seção. Na entrada
-     do corredor ela é larga (a borda frontal, com espessura); no interior, um filete —
-     as linhas discretas de profundidade. Offsets do gradiente #portal-layer. */
-  var FACE_COLOR = '#F2E8DC';
-  var SECTION_EDGE = .86;
-  var FACE_ENTRY = { width: .032, opacity: .5 };
-  var FACE_INTERIOR = { width: .008, opacity: .15 };
-
-  /* Ambiente: branco puro na identidade; com o avanço da câmera, assume os tons do
-     túnel — pedra quente junto à saída, fria em direção às bordas. */
-  var AMBIENT_WHITE = '#FFFFFF';
-  var GLOW_OPACITY = .6;       // luz azulada no vão: presente, sem formar halo
-  var AMBIENT_TUNNEL = ['#ECE5DC', '#D8DDE2', '#A8B4C1'];
-
-  /* Frisos de luz: duas retas junto à base das paredes do corredor (y = 640, abaixo das
-     pontas do arco, sem nunca se unirem), como faixas de luz quente que convergem para a
-     saída. Ficam abaixo do eixo da câmera, então descem em diagonal — nenhuma linha
-     horizontal cruza a marca. x: lado (-1 esquerda, 1 direita). */
-  var RAILS = [
-    { x: -1, y: 640 },
-    { x: 1, y: 640 }
-  ];
-  var RAIL_COLOR = '#E2C29C';
-  var RAIL_OPACITY = .6;
+  /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
+     da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
+     Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
+  var ARC_NAVY = { fill: '#0B1F33', face: ['#7FA2C4', '#3D6389', '#0B1F33'] };
+  var ARC_STONE = { fill: '#D6C9B7', face: ['#FBF3E8', '#ECE0D0', '#D6C9B7'] };
 
   var view = {};
   var frameId = 0;
   var finished = !playing;
+  var tunnel = null;
 
-  /* --- Curvas e cores ---------------------------------------------------- */
+  /* --- Curvas -------------------------------------------------------------- */
 
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function phase(t, range) { return clamp01((t - range[0]) / (range[1] - range[0])); }
@@ -163,19 +147,12 @@
     return [n >> 16, (n >> 8) & 255, n & 255];
   }
 
-  function mixColor(a, b, m) {
-    return [a[0] + (b[0] - a[0]) * m, a[1] + (b[1] - a[1]) * m, a[2] + (b[2] - a[2]) * m];
+  function mixHex(a, b, m) {
+    var x = hexToRgb(a);
+    var y = hexToRgb(b);
+    return 'rgb(' + Math.round(x[0] + (y[0] - x[0]) * m) + ',' +
+      Math.round(x[1] + (y[1] - x[1]) * m) + ',' + Math.round(x[2] + (y[2] - x[2]) * m) + ')';
   }
-
-  function rgb(c) {
-    return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')';
-  }
-
-  LAYER_NEAR_EXIT = hexToRgb(LAYER_NEAR_EXIT);
-  LAYER_NEAR_EXIT_WARM = hexToRgb(LAYER_NEAR_EXIT_WARM);
-  LAYER_NEAR_CAMERA = hexToRgb(LAYER_NEAR_CAMERA);
-  AMBIENT_WHITE = hexToRgb(AMBIENT_WHITE);
-  AMBIENT_TUNNEL = AMBIENT_TUNNEL.map(hexToRgb);
 
   function cubicBezier(x1, y1, x2, y2) {
     function at(t, a, b) { return ((1 - 3 * b + 3 * a) * t + (3 * b - 6 * a)) * t * t + 3 * a * t; }
@@ -192,45 +169,12 @@
     };
   }
 
-  // Início quase imperceptível, meio contido (tempo para perceber o corredor) e chegada longa.
-  var cameraEase = cubicBezier(.5, 0, .28, 1);
+  // Avanço em escala logarítmica (ritmo de aproximação constante), com partida e
+  // chegada suaves: sem aceleração concentrada no final.
+  var cameraEase = cubicBezier(.4, .1, .75, 1);
 
-  /* --- Corredor ------------------------------------------------------------- */
-
-  // Cada camada: um retângulo com o seu próprio degradê (clonado de #portal-layer),
-  // pintadas da saída para a câmera (a mais próxima por cima).
-  var SVG_NS = 'http://www.w3.org/2000/svg';
-  var corridor = [];
-  for (var c = 0; c < CORRIDOR_LAYERS; c++) {
-    var gradient = layerGradient.cloneNode(true);
-    gradient.id = 'portal-layer-' + c;
-    gradient.removeAttribute('data-layer-gradient');
-    layerGradient.parentNode.appendChild(gradient);
-
-    var el = document.createElementNS(SVG_NS, 'rect');
-    el.setAttribute('x', '-20000');
-    el.setAttribute('y', '-20000');
-    el.setAttribute('width', '40000');
-    el.setAttribute('height', '40000');
-    el.setAttribute('fill', 'url(#portal-layer-' + c + ')');
-    corridorGroup.appendChild(el);
-
-    var isEntry = c === CORRIDOR_LAYERS - 1;
-    var faceSpec = isEntry ? FACE_ENTRY : FACE_INTERIOR;
-    var stops = gradient.querySelectorAll('stop');
-    stops[0].setAttribute('offset', SECTION_EDGE);
-    stops[1].setAttribute('offset', SECTION_EDGE + .002);
-    stops[2].setAttribute('offset', SECTION_EDGE + faceSpec.width);
-    stops[3].setAttribute('offset', SECTION_EDGE + faceSpec.width + .03);
-
-    corridor.push({
-      el: el,
-      gradient: gradient,
-      stops: stops,
-      face: faceSpec,
-      depth: CORRIDOR_LENGTH * (c + 1) / CORRIDOR_LAYERS, // distância à frente do arco
-      share: c / (CORRIDOR_LAYERS - 1)                     // 0 = junto à saída, 1 = entrada
-    });
+  function cameraDistance(p) {
+    return CAMERA_START * Math.pow(view.cameraEnd / CAMERA_START, cameraEase(p));
   }
 
   /* --- Medidas ----------------------------------------------------------- */
@@ -241,196 +185,141 @@
 
     // Mesmo enquadramento de object-fit: cover + object-position do CSS.
     var fit = Math.max(w / IMAGE.w, h / IMAGE.h);
+    var imageLeft = (w - IMAGE.w * fit) * IMAGE.posX;
     var imageTop = (h - IMAGE.h * fit) * IMAGE.posY;
-    var horizonY = imageTop + IMAGE.h * fit * IMAGE.horizon;
 
-    // Início: a logo centralizada. O eixo da câmera (AXIS_Y) aparece sempre em vanishY.
+    // Início: a logo centralizada. O olho da câmera (GEOMETRY.eye) aparece em vanishY.
     var startScale = Math.min(w * .62, 280) / LOGO_WIDTH;
-    var vanishY = h * .47 - (LOGO_CENTER_Y - AXIS_Y) * startScale;
+    var vanishY = h * .47 - (LOGO_CENTER_Y - GEOMETRY.eye) * startScale;
+    var focal = startScale * CAMERA_START;
 
-    // Fim: o arco (saída) já passou de todas as bordas; resta a paisagem da Home.
-    var endScale = 1.25 * Math.max((vanishY + 10) / (AXIS_Y - ARC_TOP), (w / 2 + 10) / OUTER_R);
-
-    // Largura do corredor: proporcional ao formato da tela (no mobile, CORRIDOR_R).
-    var widthFactor = Math.max(1, (w / h) / CORRIDOR_BASE_ASPECT);
-    var corridorHalf = CORRIDOR_R * widthFactor;
-    for (var i = 0; i < corridor.length; i++) {
-      corridor[i].gradient.setAttribute('gradientTransform',
-        'translate(886.5 346.5) scale(' + (.2316 * widthFactor).toFixed(4) + ' 1) translate(-886.5 -346.5)');
-    }
-
-    // Perspectiva: quando a entrada do corredor cruza as laterais da tela, o arco
-    // tem ENTRY_PASS_RATIO da largura dela. Daí resulta a distância focal.
-    var entryPassScale = (w / 2) / corridorHalf;
-    var focal = CORRIDOR_LENGTH * ENTRY_PASS_RATIO * entryPassScale / (1 - ENTRY_PASS_RATIO);
+    // Em telas mais largas que o celular, o túnel se alarga (menos que a tela, para a
+    // parede do fundo não dominar o quadro): as paredes continuam visíveis nas laterais.
+    var widthFactor = Math.sqrt(Math.max(1, (w / focal) / MOBILE_VIEW));
+    var halfWidth = HALF_WIDTH * widthFactor;
 
     view = {
       w: w,
       h: h,
-      horizonY: horizonY,
+      horizonY: imageTop + IMAGE.h * fit * IMAGE.horizon,
+      sunLayoutX: imageLeft + IMAGE.w * fit * IMAGE.sunX,
       vanishY: vanishY,
       focal: focal,
-      corridorHalf: corridorHalf,
+      halfWidth: halfWidth,
+      vaultRise: HALF_WIDTH + (halfWidth - HALF_WIDTH) * .35,
       startScale: startScale,
-      endScale: endScale
+      // Chegada: o vão (ombreiras e topo do arco) já passou das bordas da tela.
+      cameraEnd: Math.min(CAMERA_END, focal / Math.max(
+        (w / 2) * 1.08 / GEOMETRY.jambX,
+        vanishY * 1.05 / (GEOMETRY.eye - ARC_TOP)))
     };
 
-    // Um único centro de expansão para tudo (portal e paisagem): o eixo da câmera.
-    // A paisagem usa matrizes explícitas (ver landscapeMatrix), por isso origem 0 0.
+    // A paisagem usa matrizes explícitas (ver landscapeFrame), por isso origem 0 0.
     landscape.style.transformOrigin = '0 0';
     landscapeNear.style.transformOrigin = '0 0';
     layer.style.transformOrigin = (w / 2) + 'px ' + vanishY + 'px';
+
+    if (tunnel) tunnel.resize(w, h);
   }
 
   /* --- Câmera ---------------------------------------------------------------- */
 
-  // Cada plano é uma ampliação em torno do eixo: (ARC_X, AXIS_Y) fica sempre em (w/2, vanishY).
+  // A logo fica no plano da parede do fundo: (ARC_X, eye) sempre em (w/2, vanishY).
   function placePlane(el, scale) {
     var tx = view.w / 2 - ARC_X * scale;
-    var ty = view.vanishY - AXIS_Y * scale;
+    var ty = view.vanishY - GEOMETRY.eye * scale;
     el.setAttribute('transform',
       'matrix(' + scale.toFixed(5) + ' 0 0 ' + scale.toFixed(5) + ' ' + tx.toFixed(2) + ' ' + ty.toFixed(2) + ')');
-  }
-
-  // u = 0: logo; u = 1: chegada à Home.
-  function setCamera(u) {
-    var exitScale = view.startScale * Math.pow(view.endScale / view.startScale, u);
-    var exitDistance = view.focal / exitScale;
-
-    placePlane(exitPlane, exitScale);
-    placePlane(markPlane, exitScale);
-
-    // Cada camada do corredor está mais perto da câmera que o arco: cresce mais rápido.
-    for (var i = 0; i < corridor.length; i++) {
-      var distance = exitDistance - corridor[i].depth;
-      if (distance <= view.focal / 200) {
-        corridor[i].el.style.display = 'none'; // já ficou atrás da câmera
-      } else {
-        corridor[i].el.style.display = '';
-        placePlane(corridor[i].el, view.focal / distance);
-      }
-    }
-
-    placeRails(exitDistance);
-
-    // A paisagem se aproxima a partir do mesmo eixo da câmera; a água próxima,
-    // mais rápido que céu e montanhas. Em u = 1 ambas coincidem com a Home.
-    var far = 1 - LANDSCAPE_ZOOM * (1 - u);
-    landscape.style.transform = landscapeMatrix(far);
-    landscapeNear.style.transform = landscapeMatrix(far * (1 - NEAR_DEPTH * (1 - u)));
-  }
-
-  /* Frisos: cada um é o segmento de uma reta das paredes, da saída (profundidade 0)
-     até a entrada do corredor — ou até perto da câmera, se ela já estiver dentro dele.
-     Como todos os pontos usam a mesma projeção, as retas convergem para o eixo. */
-  function placeRails(exitDistance) {
-    var nearest = Math.min(CORRIDOR_LENGTH, exitDistance - view.focal / 40);
-    for (var i = 0; i < railLines.length; i++) {
-      var rail = RAILS[i];
-      var x = ARC_X + rail.x * view.corridorHalf;
-      var a = project(x, rail.y, exitDistance);
-      var b = project(x, rail.y, exitDistance - Math.max(0, nearest));
-      railLines[i].setAttribute('x1', a[0].toFixed(1));
-      railLines[i].setAttribute('y1', a[1].toFixed(1));
-      railLines[i].setAttribute('x2', b[0].toFixed(1));
-      railLines[i].setAttribute('y2', b[1].toFixed(1));
-    }
-  }
-
-  // Ponto (x, y) da cena, a uma distância da câmera, em coordenadas de tela.
-  function project(x, y, distance) {
-    var scale = view.focal / distance;
-    return [view.w / 2 + (x - ARC_X) * scale, view.vanishY + (y - AXIS_Y) * scale];
   }
 
   /* Enquadramento da paisagem: a Home a mostra ampliada (1 + LANDSCAPE_ZOOM) a partir
      do horizonte. Sobre esse enquadramento, o movimento da câmera aplica uma escala
      a a partir do eixo (w/2, vanishY). Composição: p → a·(1+Z)·p + deslocamento. */
-  function landscapeMatrix(a) {
+  function landscapeFrame(a) {
     var b = 1 + LANDSCAPE_ZOOM;
     var cx = view.w / 2;
-    var homeX = (1 - b) * cx;
-    var homeY = (1 - b) * view.horizonY;
-    var x = a * homeX + (1 - a) * cx;
-    var y = a * homeY + (1 - a) * view.vanishY;
-    var scale = a * b;
-    return 'matrix(' + scale.toFixed(5) + ',0,0,' + scale.toFixed(5) + ',' + x.toFixed(2) + ',' + y.toFixed(2) + ')';
+    return {
+      scale: a * b,
+      x: a * (1 - b) * cx + (1 - a) * cx,
+      y: a * (1 - b) * view.horizonY + (1 - a) * view.vanishY
+    };
   }
 
-  /* --- Luz, abertura e corredor ------------------------------------------- */
+  function landscapeMatrix(a) {
+    var f = landscapeFrame(a);
+    return 'matrix(' + f.scale.toFixed(5) + ',0,0,' + f.scale.toFixed(5) + ',' + f.x.toFixed(2) + ',' + f.y.toFixed(2) + ')';
+  }
 
-  function setAppearance(t, u) {
+  /* --- Quadro -------------------------------------------------------------- */
+
+  // t: tempo da abertura (ms). Retorna o progresso p da câmera.
+  function render(t) {
+    var p = phase(t, T.camera);
+    var camera = cameraDistance(p);
+    var travel = Math.log(CAMERA_START / camera) / Math.log(CAMERA_START / view.cameraEnd);
+
+    placePlane(markPlane, view.focal / camera);
     mark.style.opacity = easeInOutSine(phase(t, T.markIn));
     wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
-
     var light = easeInOutSine(phase(t, T.light));
-    var archOpen = smooth(u, U.archOpen);
-    var columnOpen = smooth(u, U.columnOpen);
+    face.style.opacity = light.toFixed(4);   // a borda interna do arco ganha luz
+    setTips(smooth(p, P.tips));
+    setArcTone(smooth(p, P.arcTone));
+    arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
 
-    // A borda interna do arco ganha luz; a geometria não muda.
-    face.style.opacity = light.toFixed(4);
-    // Luz azulada no vão: cede lugar à paisagem conforme ela se define.
-    glow.style.opacity = (GLOW_OPACITY * light * (1 - archOpen)).toFixed(4);
-    setAmbient(smooth(u, U.tone));
+    // A paisagem se aproxima a partir do mesmo eixo; a água próxima, mais rápido.
+    var far = 1 - LANDSCAPE_ZOOM * (1 - travel);
+    landscape.style.transform = landscapeMatrix(far);
+    landscapeNear.style.transform = landscapeMatrix(far * (1 - NEAR_DEPTH * (1 - travel)));
 
-    setOpening(archOpen, columnOpen, smooth(u, U.hazeOut));
-    setCorridor(u);
-    setRails(u);
+    if (tunnel) {
+      var frame = landscapeFrame(far);
+      tunnel.render({
+        vanishY: view.vanishY,
+        focal: view.focal,
+        camera: camera,
+        halfWidth: view.halfWidth,
+        vaultRise: view.vaultRise,
+        sunX: frame.scale * view.sunLayoutX + frame.x,
+        light: light,
+        arch: smooth(p, P.arch),
+        column: smooth(p, P.column),
+        matter: smooth(p, P.matter),
+        joints: smooth(p, P.joints),
+        strips: smooth(p, P.strips),
+        alpha: 1 - smooth(p, P.fade)
+      });
+    }
+    return p;
   }
 
-  // A paisagem aparece primeiro no vão do arco, com pouco contraste, e depois abaixo
-  // dele. Na chegada, a névoa restante se dissipa por completo.
-  function setOpening(arch, column, out) {
-    var i;
-    for (i = 0; i < openingArch.length; i++) openingArch[i].setAttribute('stop-opacity', arch.toFixed(4));
-    for (i = 0; i < openingColumn.length; i++) openingColumn[i].setAttribute('stop-opacity', column.toFixed(4));
-    // Sem abertura, a máscara não é necessária (e a tela inicial fica exatamente lisa).
-    if (arch > 0) haze.setAttribute('mask', 'url(#portal-opening)');
-    else haze.removeAttribute('mask');
-    haze.style.opacity = (1 - out).toFixed(4);
+  // Só o trecho do arco que avança sobre o vão se dissolve; sem efeito, sem máscara
+  // (a logo da identidade é exatamente o SVG original).
+  function setTips(fade) {
+    tipsFade.setAttribute('fill-opacity', fade.toFixed(4));
+    if (fade > 0) arc.setAttribute('mask', 'url(#portal-tips)');
+    else arc.removeAttribute('mask');
   }
 
-  // tone: 0 = branco puro; 1 = tons do túnel.
-  function setAmbient(tone) {
-    for (var i = 0; i < ambientStops.length; i++) {
-      ambientStops[i].setAttribute('stop-color', rgb(mixColor(AMBIENT_WHITE, AMBIENT_TUNNEL[i], tone)));
+  // tone: 0 = azul da marca; 1 = pedra do túnel.
+  function setArcTone(tone) {
+    arc.style.fill = tone ? mixHex(ARC_NAVY.fill, ARC_STONE.fill, tone) : '';
+    for (var i = 0; i < faceStops.length; i++) {
+      faceStops[i].setAttribute('stop-color', mixHex(ARC_NAVY.face[i], ARC_STONE.face[i], tone));
     }
   }
 
-  function setRails(u) {
-    var visible = smooth(u, U.rails) * (1 - smooth(u, U.railsOut));
-    for (var i = 0; i < railLines.length; i++) {
-      railLines[i].style.stroke = RAIL_COLOR;
-      railLines[i].style.opacity = (RAIL_OPACITY * visible).toFixed(4);
-    }
-  }
-
-  // As camadas surgem uma a uma, das bordas da tela (perto da câmera) para a saída,
-  // acompanhando a aproximação: primeiro o espaço ao redor, depois a profundidade.
-  function setCorridor(u) {
-    var warm = smooth(u, U.warm);
-    var span = U.layers[1] - U.layers[0];
-    var nearExit = mixColor(LAYER_NEAR_EXIT, LAYER_NEAR_EXIT_WARM, warm);
-    for (var i = 0; i < corridor.length; i++) {
-      var item = corridor[i];
-      var start = U.layers[0] + (1 - item.share) * span * .6;
-      var visible = smooth(u, [start, start + span * .4]);
-      var color = rgb(mixColor(nearExit, LAYER_NEAR_CAMERA, item.share));
-      // Dentro da seção: transparente. Na borda: a face de pedra iluminada (espessura).
-      // Fora: a sombra da camada, que se acumula em direção às bordas da tela.
-      var faceOpacity = (item.face.opacity * visible).toFixed(4);
-      item.stops[1].setAttribute('stop-opacity', faceOpacity);
-      item.stops[2].setAttribute('stop-opacity', faceOpacity);
-      item.stops[3].setAttribute('stop-color', color);
-      item.stops[3].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
-      item.stops[4].setAttribute('stop-color', color);
-      item.stops[4].setAttribute('stop-opacity', (LAYER_OPACITY * visible).toFixed(4));
-    }
-  }
-
+  // Estado final (Home): a câmera já atravessou; a arquitetura saiu do quadro.
   function renderFinal() {
-    setAppearance(Infinity, 1);
-    setCamera(1);
+    placePlane(markPlane, view.focal / view.cameraEnd * 1.6);
+    mark.style.opacity = 1;
+    wordmark.style.opacity = 0;
+    face.style.opacity = 1;
+    setTips(1);
+    setArcTone(1);
+    arc.style.opacity = 0;
+    landscape.style.transform = landscapeMatrix(1);
+    landscapeNear.style.transform = landscapeMatrix(1);
   }
 
   /* --- Primeiro scroll: a câmera avança um pouco mais ---------------------- */
@@ -457,6 +346,8 @@
     if (finished) {
       renderFinal();
       applyScroll();
+    } else {
+      render(clock);
     }
   }
 
@@ -465,11 +356,13 @@
 
   /* --- Sem abertura: a Home já começa no estado final ------------------------ */
 
-  measure();
+  var clock = 0;
 
   if (!playing) {
+    measure();
     renderFinal();
     layer.classList.add('is-ready');
+    if (canvas) canvas.remove();
     if (skipButton) skipButton.remove();
     applyScroll();
     return;
@@ -491,17 +384,10 @@
     landscape.addEventListener('error', markReady);
   }
 
-  var clock = 0;
   var lastNow = 0;
   var waited = 0;
+  var slowFrames = 0;
   var revealed = false;
-
-  function render(t) {
-    var u = cameraEase(phase(t, T.camera));
-    setAppearance(t, u);
-    setCamera(u);
-    if (!revealed && t >= T.ui) reveal();
-  }
 
   function tick(now) {
     var dt = lastNow ? Math.min(now - lastNow, 64) : 0;
@@ -514,7 +400,12 @@
       clock += dt;
     }
 
+    // Quadros lentos seguidos: o túnel passa a renderizar em resolução menor.
+    slowFrames = dt > 28 ? slowFrames + 1 : 0;
+    if (slowFrames === 8 && tunnel) tunnel.degrade();
+
     render(clock);
+    if (!revealed && clock >= T.ui) reveal();
 
     if (clock < T.camera[1]) frameId = requestAnimationFrame(tick);
     else finish();
@@ -530,6 +421,9 @@
     if (finished) return;
     finished = true;
     cancelAnimationFrame(frameId);
+    if (tunnel) tunnel.destroy();
+    if (canvas) canvas.remove();
+    measure();
     renderFinal();
     if (!revealed) reveal();
     removeIntroListeners();
@@ -560,6 +454,19 @@
     document.removeEventListener('keydown', onKey);
     window.removeEventListener('wheel', onUserScroll);
     window.removeEventListener('touchmove', onUserScroll);
+  }
+
+  // Túnel 3D. Se não houver WebGL, ou se o contexto for perdido, segue para a Home.
+  if (canvas && window.WemaiTunnel) {
+    tunnel = window.WemaiTunnel.create(canvas, GEOMETRY, function () {
+      tunnel = null;
+      skip();
+    });
+  }
+  measure();
+  if (!tunnel) {
+    skip();
+    return;
   }
 
   if (skipButton) skipButton.addEventListener('click', skip);
