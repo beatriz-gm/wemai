@@ -31,6 +31,15 @@
        brilho fosco (GGX) da luz rasante da saída;
      - piso polido: reflexo da foto com Fresnel, alongado na vertical.
 
+   Camada de tecnologia (toda procedural: não depende de nenhuma imagem)
+     - linhas estruturais finas no piso, paredes e abóbada, sempre no sentido do
+       túnel (nervuras em arco leriam como "múltiplas passagens");
+     - poucos planos de vidro reais, à frente das paredes. Ficam fora do cone de
+       visão do vão, por isso nunca passam na frente da paisagem;
+     - molduras, cantos de seleção, marcadores e linhas de conexão, sem conteúdo;
+     - reflexo dos planos no piso e luz discreta contornando vão e abóbada.
+     Ela nasce no vão e vem em direção à câmera (uBuild), com intensidade uTech.
+
    Este arquivo só desenha. O tempo e a câmera ficam em js/intro.js.
    ========================================================================== */
 
@@ -48,7 +57,7 @@
     return [
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
-      'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha;',
+      'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       '#define EYE ' + f(g.eye),
@@ -137,9 +146,56 @@
     '  return lin(texture2D(uPhoto,clamp((s-uPh.xy)/uPh.zw,0.,1.)).rgb);',
     '}',
 
+    // Camada de tecnologia. Cores da marca: traço #3D6389; vidro e luz, quase brancos.
+    'const vec3 TECH_LINE=vec3(.239,.388,.537);',
+    'const vec3 TECH_GLASS=vec3(.93,.97,1.);',
+    'const vec3 TECH_LIGHT=vec3(1.,.97,.93);',
+    'const float GLASS_GAP=26.;',        // distância do vidro à parede
+    // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
+    'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
+    // Plano de vidro em x = s·(uW−GLASS_GAP). Retorna (corpo, traços). mir = 1: visto no
+    // reflexo do piso (y espelhado), com contornos mais suaves (soft).
+    'vec2 glass(vec2 d,float s,float z0,float z1,float y0,float y1,float mir,float soft){',
+    '  float sx=s*d.x;if(sx<1e-4)return vec2(0.);',
+    '  float X=uW-GLASS_GAP;float tp=X/sx;float z=uCam-tp;',
+    '  float zc=z1+110.;',                // a linha de conexão vai além do vidro
+    '  if(z<z0-4.||z>zc+6.)return vec2(0.);',
+    '  float y=EYE+tp*d.y;if(mir>.5)y=2.*FLOOR-y;',
+    '  if(y<y0-4.||y>y1+4.)return vec2(0.);',
+    '  float fy=tp/uF+soft;float fz=tp*tp/(X*uF)+soft;',
+    '  float dz=min(z-z0,z1-z);float dy=min(y-y0,y1-y);',
+    '  float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
+    '  float rv=techReveal(z);',
+    // Corpo: um pouco mais denso do lado da saída, onde pega mais luz.
+    '  float body=ins*(.62+.38*(1.-smoothstep(z0,z1,z)));',
+    '  float fr=max(line(dz,.7,fz)*smoothstep(-fy,0.,dy),line(dy,.7,fy)*smoothstep(-fz,0.,dz));',
+    // Cantos de seleção: o traço da moldura se reforça só junto aos vértices.
+    '  float cm=(1.-smoothstep(38.,46.,dz))*(1.-smoothstep(20.,24.,dy));',
+    '  float st=fr*(.30+.70*cm);',
+    // Marcador discreto: um traço curto no alto do plano, sem conteúdo.
+    '  st=max(st,line(y-(y0+22.),.7,fy)*step(z0+26.,z)*step(z,z0+92.)*ins*.55);',
+    // Linha de conexão até um pequeno nó, além da borda do vidro.
+    '  float yc=y0+(y1-y0)*.32;',
+    '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55);',
+    '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6);',
+    '  return vec2(body,st)*rv;',
+    '}',
+    // Os poucos planos, alternados entre as paredes. O vidro fica entre o vão e a parede:
+    // nenhum raio que atravessa o vão chega a ele, por isso a paisagem nunca é coberta.
+    // Cada ponto só pode pertencer a um plano: escolhe-se antes, para calcular um só por pixel.
+    'vec2 glasses(vec2 d,float mir,float soft){',
+    '  float z=uCam-(uW-GLASS_GAP)/abs(d.x);vec4 b;',     // b: z0, z1, y0, y1
+    '  if(d.x>0.)b=z<600.?vec4(110.,340.,405.,700.):vec4(860.,1150.,405.,690.);',
+    '  else b=z<1010.?vec4(430.,720.,450.,720.):vec4(1290.,1560.,450.,700.);',
+    '  return glass(d,d.x>0.?1.:-1.,b.x,b.y,b.z,b.w,mir,soft);',
+    '}',
+
     'void main(){',
     '  vec2 px=vec2(gl_FragCoord.x,uView.y*uDpr-gl_FragCoord.y)/uDpr;',
     '  vec2 d=vec2((px.x-uView.x*.5)/uF,(px.y-uVpY)/uF);',
+    // Em largura ímpar de canvas, a coluna central cai exatamente em x = 0, onde a luz da
+    // abertura degenera (arestas coplanares) e aparecia um fio vertical na abóbada.
+    '  if(abs(d.x)<1e-4)d.x=1e-4;',
     '  float kind;',
     '  float tT=exitProfile(d,uW,SPRING,uW,uV,SPRING,kind);',
     '  float tFac=uCam-LEN;',
@@ -313,8 +369,37 @@
     '    col+=lin(STRIP)*exp(-(FLOOR-P.y)/55.)*.34*uStrip*STRIP_K;',
     '  }',
 
+    // Tecnologia na arquitetura: linhas finas no sentido do túnel e marcadores curtos,
+    // gravados na superfície (por isso entram antes do reflexo do piso).
+    '  if(uTech>.001&&P.z>0.){',
+    '    float ln=0.,mk=0.;float fz=fp*t/uW;',
+    '    if(surf==0.){',
+    '      float ax=abs(P.x);fz=fp*t/(FLOOR-EYE);',
+    '      ln=line(ax-JAMB_X,.8,fp)+line(ax-JAMB_X*.5,.6,fp)*.5;',
+    '      mk=grid(P.z,360.,120.,.9,fz)*(1.-smoothstep(9.,13.,abs(ax-JAMB_X)));',
+    '    }else if(surf==1.){',
+    '      ln=line(P.y-470.,.7,fp)+line(P.y-655.,.6,fp)*.5;',
+    '      mk=grid(P.z,360.,300.,.9,fz)*(1.-smoothstep(8.,12.,abs(P.y-470.)));',
+    '    }else if(surf==2.){',
+    '      float as=abs(atan(P.x/uW,-(P.y-SPRING)/uV)*uW);',
+    '      ln=line(as-uW*.62,.7,fp)+line(as-uW*.2,.6,fp)*.5;',
+    '      mk=grid(P.z,360.,300.,.9,fz)*(1.-smoothstep(8.,12.,abs(as-uW*.62)));',
+    '    }',
+    // Mais fracas perto da câmera, onde a perspectiva as engrossa.
+    '    float nearK=.45+.55*smoothstep(200.,1000.,t);',
+    '    col=mix(col,lin(TECH_LINE),min(ln*.20+mk*.30,1.)*nearK*uTech*techReveal(P.z));',
+    '  }',
+    // Luz discreta nas bordas: contorna o vão e o encontro da abóbada com a parede do fundo.
+    '  if(uTech>.001&&surf==3.){',
+    '    float sdv=portalSd(P.xy);',
+    '    float de=min(uW-abs(P.x),FLOOR-P.y);',
+    '    if(P.y<SPRING)de=min(de,(1.-length(vec2(P.x/uW,(P.y-SPRING)/uV)))*min(uW,uV));',
+    '    float rim=line(sdv-44.,.8,fp)*.55+exp(-abs(sdv-44.)/10.)*.14+exp(-max(de,0.)/12.)*.20;',
+    '    col+=lin(TECH_LIGHT)*rim*uTech*techReveal(0.);',
+    '  }',
+
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
-    '  float alpha=1.;',
+    '  float alpha=1.;float frT=0.;',
     '  if(surf==0.){',
     '    vec3 v=normalize(vec3(d.x,d.y,-1.));',
     '    vec3 Nr=normalize(mix(N,Nn,.35));',
@@ -330,10 +415,22 @@
     '    vec3 rc=photo(sr)*.28+(photo(sr+vec2(0.,sy))+photo(sr-vec2(0.,sy)))*.22+(photo(sr+vec2(0.,2.*sy))+photo(sr-vec2(0.,2.*sy)))*.14;',
     '    rc*=GAIN*REFL;',
     '    col=mix(col,mix(col,rc,m),fr*.85*uCol);',   // fora do vão: o próprio túnel refletido
+    '    frT=fr;',
     // Junto ao vão, o piso se dissolve na água (sem linha fechando a base do arco).
     '    if(abs(P.x)<JAMB_X+20.){',
     '      float edge=smoothstep(-REVEAL,70.,P.z);',
     '      alpha=1.-(1.-edge)*uCol*(1.-smoothstep(JAMB_X-30.,JAMB_X+20.,abs(P.x)));',
+    '    }',
+    '  }',
+
+    // Planos de vidro à frente da superfície; no piso, o reflexo delicado deles.
+    '  if(uTech>.001){',
+    '    vec2 g=glasses(d,0.,0.);',
+    // O reflexo perde nitidez e força à medida que o piso se aproxima da câmera.
+    '    if(surf==0.){vec2 gr=glasses(d,1.,16.+dz*.05);g=max(g,gr*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.));}',
+    '    if(g.x+g.y>0.){',
+    '      col=mix(col,lin(TECH_GLASS),g.x*.15*uTech);',
+    '      col=mix(col,lin(TECH_LINE),g.y*.46*uTech);',
     '    }',
     '  }',
 
@@ -402,7 +499,7 @@
     }
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
-      'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha',
+      'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -436,8 +533,14 @@
           texCount++;
         } catch (e) { /* sem o material: pedra lisa */ }
       }
+      // decode() pode ser rejeitado mesmo com a imagem válida (alguns navegadores móveis):
+      // nesse caso, ainda se usa a imagem quando ela terminar de carregar.
+      function uploadOnLoad() {
+        if (img.complete && img.naturalWidth) upload();
+        else img.onload = upload;
+      }
       img.src = touch ? src.replace('.jpg', '-512.jpg') : src;
-      if (img.decode) img.decode().then(upload, function () {});
+      if (img.decode) img.decode().then(upload, uploadOnLoad);
       else img.onload = upload;
     }
     loadTexture(TEXTURES.data, 1, dataTex);
@@ -558,6 +661,8 @@
       gl.uniform1f(u.uStrip, s.strips);
       gl.uniform1f(u.uJoint, s.joints);
       gl.uniform1f(u.uAlpha, s.alpha);
+      gl.uniform1f(u.uTech, s.tech);
+      gl.uniform1f(u.uBuild, s.build);
       gl.uniform4f(u.uPh, s.photo.x, s.photo.y, s.photo.w, s.photo.h);
       gl.uniform1f(u.uPhOk, photoOk ? 1 : 0);
       gl.uniform1f(u.uTexOk, texCount === 2 ? 1 : 0);

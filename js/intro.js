@@ -121,7 +121,12 @@
     arcMerge: [.5, .7],      // e então se funde ao portal: resta só o contorno da abertura
     joints: [.24, .6],
     strips: [.32, .66],
-    fade: [.9, 1]            // o que restar da arquitetura nas bordas se dissolve na chegada
+    // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
+    // perceptível na travessia e enfraquece antes da saída (na Home, o canvas já não existe).
+    techIn: [.16, .54],
+    techOut: [.7, .9],
+    techBuild: [.16, .6],    // ela nasce no vão e avança em direção à câmera
+    fade: [.9, 1]           // o que restar da arquitetura nas bordas se dissolve na chegada
   };
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
@@ -283,6 +288,8 @@
         matter: smooth(p, P.matter),
         joints: smooth(p, P.joints),
         strips: smooth(p, P.strips),
+        tech: smooth(p, P.techIn) * (1 - smooth(p, P.techOut)),
+        build: smooth(p, P.techBuild),
         alpha: 1 - smooth(p, P.fade)
       }
     };
