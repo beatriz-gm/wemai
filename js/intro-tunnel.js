@@ -253,7 +253,7 @@
     'const vec3 SCREEN_DARK_TOP=vec3(.09,.23,.36);const vec3 SCREEN_DARK=vec3(.055,.145,.235);',
     'const vec3 SCREEN_LIGHT_TOP=vec3(.985,.99,1.);const vec3 SCREEN_LIGHT=vec3(.93,.955,.98);',
     'const vec3 SCREEN_INK_DARK=vec3(.62,.80,.96);',
-    'const float SCREEN_EMIT=1.22;const float SCREEN_OPACITY=.86;',
+    'const float SCREEN_EMIT=1.22;const float SCREEN_OPACITY=.86;const float SCREEN_OPACITY_DARK=.96;',
     'const float GLASS_LINK=70.;',       // a linha de conexão vai além do vidro
     'const float PANEL_T=5.;',          // espessura das telas soltas
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
@@ -376,7 +376,7 @@
     '  vec2 uv=clamp(vec2(qx,y-b.z)/vec2(b.y-b.x,b.w-b.z),0.,1.);',
     '  vec3 scr=dk>.5?lin(mix(SCREEN_DARK_TOP,SCREEN_DARK,uv.y)):lin(mix(SCREEN_LIGHT_TOP,SCREEN_LIGHT,uv.y))*SCREEN_EMIT;',
     '  c=mix(c,lin(TECH_NAVY),ins*(1.-bz)*.9*vis);',
-    '  c=mix(c,scr,bz*SCREEN_OPACITY*vis);',
+    '  c=mix(c,scr,bz*(dk>.5?SCREEN_OPACITY_DARK:SCREEN_OPACITY)*vis);',
     // Barra de título com três pontos, como uma janela.
     '  float fm=max(fz,fy);float ty=y-b.z;',
     '  c=mix(c,dk>.5?lin(TECH_NAVY):lin(vec3(.84,.89,.95)),(1.-smoothstep(12.-fy,12.+fy,ty))*bz*.85*vis);',
