@@ -34,8 +34,10 @@
    Camada de tecnologia (toda procedural: não depende de nenhuma imagem)
      - linhas estruturais finas no piso, paredes e abóbada, sempre no sentido do
        túnel (nervuras em arco leriam como "múltiplas passagens");
-     - poucos planos de vidro reais, à frente das paredes. Ficam fora do cone de
-       visão do vão, por isso nunca passam na frente da paisagem;
+     - planos de vidro reais, paralelos às paredes, espalhados sem ordem (WALL_PANELS).
+       Cada um sai da parede num momento próprio, e alguns voltam para dentro dela
+       durante a travessia (uProg). Ficam fora do cone de visão do vão, por isso nunca
+       passam na frente da paisagem;
      - molduras, cantos de seleção, marcadores e linhas de conexão, sem conteúdo;
      - reflexo dos planos no piso e luz discreta contornando vão e abóbada.
      Ela nasce no vão e vem em direção à câmera (uBuild), com intensidade uTech.
@@ -51,13 +53,53 @@
   // Material CC0 (ambientCG Concrete034), 1024²: data = R albedo, G rugosidade, B altura.
   var TEXTURES = { data: 'img/tunel-mineral-data.jpg', normal: 'img/tunel-mineral-normal.jpg' };
 
+  /* Telas na parede: lado (1 direita, −1 esquerda), z inicial e final, y de cima e de baixo,
+     quanto se afastam da parede, quando saem e quando voltam para dentro dela (progresso da
+     câmera; 2 = não voltam). Todas ficam fora do cone de visão do vão:
+     x = meia-largura − afastamento > 252·(1 − z/2400). As duas paredes têm o mesmo número de
+     telas. */
+  var WALL_PANELS = [
+    [1, 55, 196, 486, 627, 26, .15, .38],
+    [1, 63, 248, 375, 486, 23, .21, 2],
+    [1, 116, 328, 642, 767, 16, .34, 2],
+    [1, 271, 466, 372, 634, 14, .23, 2],
+    [1, 333, 453, 645, 761, 14, .31, 2],
+    [1, 470, 735, 520, 740, 41, .13, 2],
+    [1, 558, 717, 379, 493, 50, .26, 2],
+    [1, 762, 984, 439, 583, 42, .14, .33],
+    [1, 792, 939, 613, 752, 33, .15, .33],
+    [-1, 53, 211, 633, 758, 20, .44, 2],
+    [-1, 73, 208, 408, 631, 19, .43, 2],
+    [-1, 211, 328, 561, 765, 18, .36, 2],
+    [-1, 253, 379, 376, 536, 18, .32, .51],
+    [-1, 395, 543, 451, 661, 29, .16, 2],
+    [-1, 588, 897, 597, 711, 32, .20, .34],
+    [-1, 623, 792, 476, 587, 17, .19, .36],
+    [-1, 804, 984, 388, 568, 26, .16, 2],
+    [-1, 904, 1078, 568, 735, 61, .17, .31]
+  ];
+
+  /* Código GLSL das telas. As duas paredes dividem o mesmo código: cada posição escolhe os
+     valores do lado do pixel, então o teste roda uma vez só. Os valores entram como
+     constantes, sem uniforms. */
+  function panelCode() {
+    function f(v) { return (+v).toFixed(3); }
+    function vals(q) { return { b: 'vec4(' + [q[1], q[2], q[3], q[4]].map(f) + ')', m: 'vec3(' + [q[5], q[6], q[7]].map(f) + ')' }; }
+    var right = [], left = [], calls = [];
+    WALL_PANELS.forEach(function (q) { (q[0] > 0 ? right : left).push(vals(q)); });
+    for (var i = 0; i < Math.min(right.length, left.length); i++) {
+      calls.push('wallPick(best,Z,G,iv,dy,mir,r?' + right[i].b + ':' + left[i].b + ',r?' + right[i].m + ':' + left[i].m + ');');
+    }
+    return 'void pickPanels(bool r,inout float best,inout vec4 Z,inout float G,float iv,float dy,float mir){' + calls.join('') + '}';
+  }
+
   // Constantes da cena, injetadas no shader (mesma geometria usada pelo SVG da logo).
   function fragmentSource(g) {
     function f(v) { return (+v).toFixed(3); }
     return [
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
-      'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild;',
+      'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       '#define EYE ' + f(g.eye),
@@ -71,11 +113,13 @@
       '#define IN_R ' + f(g.innerR),
       '#define JAMB_X ' + f(g.jambX),
       '#define JAMB_Y ' + f(g.jambY),
+      SHADER_HEAD,
+      panelCode(),
       SHADER_BODY
     ].join('\n');
   }
 
-  var SHADER_BODY = [
+  var SHADER_HEAD = [
     '#define PI 3.14159265',
     // Paleta (sRGB): pedra clara e quente; frisos.
     'const vec3 STONE_S=vec3(.905,.874,.836);',
@@ -150,22 +194,24 @@
     'const vec3 TECH_LINE=vec3(.239,.388,.537);',
     'const vec3 TECH_GLASS=vec3(.93,.97,1.);',
     'const vec3 TECH_LIGHT=vec3(1.,.97,.93);',
-    'const float GLASS_GAP=26.;',        // distância do vidro à parede
+    'const float GLASS_LINK=70.;',       // a linha de conexão vai além do vidro
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
-    // Plano de vidro em x = s·(uW−GLASS_GAP). Retorna (corpo, traços). mir = 1: visto no
-    // reflexo do piso (y espelhado), com contornos mais suaves (soft).
-    'vec2 glass(vec2 d,float s,float z0,float z1,float y0,float y1,float mir,float soft){',
+    // Plano de vidro em x = s·(uW − g): g é o afastamento da parede neste instante (com g
+    // perto de zero, a tela está entrando ou saindo da parede). Retorna (corpo, traços).
+    // mir = 1: visto no reflexo do piso (y espelhado), com contornos mais suaves (soft).
+    'vec2 glass(vec2 d,float s,float z0,float z1,float y0,float y1,float g,float mir,float soft){',
     '  float sx=s*d.x;if(sx<1e-4)return vec2(0.);',
-    '  float X=uW-GLASS_GAP;float tp=X/sx;float z=uCam-tp;',
-    '  float zc=z1+110.;',                // a linha de conexão vai além do vidro
+    '  float X=uW-g;float tp=X/sx;float z=uCam-tp;',
+    '  float zc=z1+GLASS_LINK;',
     '  if(z<z0-4.||z>zc+6.)return vec2(0.);',
     '  float y=EYE+tp*d.y;if(mir>.5)y=2.*FLOOR-y;',
     '  if(y<y0-4.||y>y1+4.)return vec2(0.);',
     '  float fy=tp/uF+soft;float fz=tp*tp/(X*uF)+soft;',
     '  float dz=min(z-z0,z1-z);float dy=min(y-y0,y1-y);',
     '  float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
-    '  float rv=techReveal(z);',
+    // Junto da parede a tela ainda se confunde com ela: ganha corpo ao se afastar.
+    '  float rv=smoothstep(1.,12.,g);',
     // Corpo: um pouco mais denso do lado da saída, onde pega mais luz.
     '  float body=ins*(.62+.38*(1.-smoothstep(z0,z1,z)));',
     '  float fr=max(line(dz,.7,fz)*smoothstep(-fy,0.,dy),line(dy,.7,fy)*smoothstep(-fz,0.,dz));',
@@ -180,14 +226,26 @@
     '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6);',
     '  return vec2(body,st)*rv;',
     '}',
-    // Os poucos planos, alternados entre as paredes. O vidro fica entre o vão e a parede:
-    // nenhum raio que atravessa o vão chega a ele, por isso a paisagem nunca é coberta.
-    // Cada ponto só pode pertencer a um plano: escolhe-se antes, para calcular um só por pixel.
+    // Afastamento de uma tela agora: sai da parede em m.y e, se m.z < 1, volta em m.z.
+    'float wallGap(vec3 m){return m.x*smoothstep(m.y,m.y+.07,uProg)*(1.-smoothstep(m.z,m.z+.07,uProg));}',
+    // Teste barato em cada tela; o desenho completo é feito só para a mais próxima da câmera.
+    // Quem é atingida só pela linha de conexão perde para qualquer vidro atingido de fato.
+    'void wallPick(inout float best,inout vec4 Z,inout float G,float iv,float dy,float mir,vec4 b,vec3 m){',
+    '  float g=wallGap(m);if(g<.5)return;',
+    '  float tp=(uW-g)*iv;float z=uCam-tp;float y=EYE+tp*dy;if(mir>.5)y=2.*FLOOR-y;',
+    '  if(z<b.x-4.||z>b.y+GLASS_LINK+6.||y<b.z-4.||y>b.w+4.)return;',
+    '  float sc=z<b.y?tp:tp+1e5;',
+    '  if(sc<best){best=sc;Z=b;G=g;}',
+    '}'
+  ].join('\n');
+
+  // Depois do código das telas (pickPanels, gerado em JS).
+  var SHADER_BODY = [
     'vec2 glasses(vec2 d,float mir,float soft){',
-    '  float z=uCam-(uW-GLASS_GAP)/abs(d.x);vec4 b;',     // b: z0, z1, y0, y1
-    '  if(d.x>0.)b=z<600.?vec4(110.,340.,405.,700.):vec4(860.,1150.,405.,690.);',
-    '  else b=z<1010.?vec4(430.,720.,450.,720.):vec4(1290.,1560.,450.,700.);',
-    '  return glass(d,d.x>0.?1.:-1.,b.x,b.y,b.z,b.w,mir,soft);',
+    '  float best=1e9;vec4 Z=vec4(0.);float G=0.;',
+    '  pickPanels(d.x>0.,best,Z,G,1./abs(d.x),d.y,mir);',
+    '  if(best>=1e9)return vec2(0.);',
+    '  return glass(d,d.x>0.?1.:-1.,Z.x,Z.y,Z.z,Z.w,G,mir,soft);',
     '}',
 
     'void main(){',
@@ -499,7 +557,7 @@
     }
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
-      'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild',
+      'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -663,6 +721,7 @@
       gl.uniform1f(u.uAlpha, s.alpha);
       gl.uniform1f(u.uTech, s.tech);
       gl.uniform1f(u.uBuild, s.build);
+      gl.uniform1f(u.uProg, s.p);
       gl.uniform4f(u.uPh, s.photo.x, s.photo.y, s.photo.w, s.photo.h);
       gl.uniform1f(u.uPhOk, photoOk ? 1 : 0);
       gl.uniform1f(u.uTexOk, texCount === 2 ? 1 : 0);

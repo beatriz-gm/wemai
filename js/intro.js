@@ -290,6 +290,7 @@
         strips: smooth(p, P.strips),
         tech: smooth(p, P.techIn) * (1 - smooth(p, P.techOut)),
         build: smooth(p, P.techBuild),
+        p: p,
         alpha: 1 - smooth(p, P.fade)
       }
     };
