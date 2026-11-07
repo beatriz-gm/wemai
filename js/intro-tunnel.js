@@ -38,8 +38,8 @@
        (WALL_PANELS). Umas são embutidas na parede e acendem no lugar; outras saem dela,
        soltas, com espessura, sombra e uma leve flutuação; dessas, algumas voltam para
        dentro e outras se fixam na parede durante a travessia (uProg). Iluminam-se como
-       telas de computador (moldura fina, superfície que emite luz, branca ou azul-claríssima,
-       reflexo do vidro), só nos tons claros da paleta, e espalham luz na parede e no piso. O conteúdo é fictício e
+       telas de vidro quase transparente, definidas pela luz: contorno, barra de título e
+       conteúdo luminosos, só nos tons claros da paleta, e espalham luz na parede e no piso. O conteúdo é fictício e
        animado (código, gráficos, aplicativos), sem texto legível. Ficam fora do cone de
        visão do vão, por isso nunca passam na frente da paisagem;
      - telas do mesmo tipo por todo o teto (CEIL_PANELS), acompanhando a curva da abóbada,
@@ -287,12 +287,14 @@
     'const vec3 TECH_LIGHT=vec3(1.,.97,.93);',
     'const vec3 TECH_GLOW=vec3(.80,.90,1.);',   // luz fria das telas
     // Telas de computador, só nos tons claros da paleta: azul-claro #7FA2C4 e quase branco.
-    // Brancas ou azul-claríssimas; conteúdo, moldura e barra em azul-claro suave.
+    // Véu branco ou azul-claríssimo; contorno e conteúdo em luz fria.
     'const vec3 TECH_SKY=vec3(.498,.635,.769);',
-    'const vec3 SCREEN_FRAME=vec3(.78,.84,.90);',
     'const vec3 SCREEN_TINT_TOP=vec3(.92,.95,.985);const vec3 SCREEN_TINT=vec3(.85,.90,.955);',
     'const vec3 SCREEN_LIGHT_TOP=vec3(.985,.99,1.);const vec3 SCREEN_LIGHT=vec3(.93,.955,.98);',
-    'const float SCREEN_EMIT=1.22;const float SCREEN_OPACITY=.8;',
+    'const float SCREEN_EMIT=1.22;',
+    // Vidro quase transparente; o que define a tela é a luz (contorno, halo e conteúdo).
+    'const float SCREEN_VEIL=0.14;const float SCREEN_EDGE=0.55;const float SCREEN_HALO=0.14;const float SCREEN_INK=0.6;',
+    'const vec3 SCREEN_LUM=vec3(.86,.93,1.);',
     'const float GLASS_LINK=70.;',       // a linha de conexão vai além do vidro
     'const float PANEL_T=5.;',          // espessura das telas soltas
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
@@ -395,38 +397,42 @@
     '  float i=floor(q.y/11.);float y=q.y-(i+.5)*11.;float len=i<.5?.42:.3+.65*hash(vec2(i,sd*91.));',
     '  return line(y,i<.5?1.6:.9,fv)*(1.-smoothstep(len*b.x-fu,len*b.x+fu,q.x))*(i<.5?1.:.7);',
     '}',
-    // Face de uma tela de computador: moldura fina, superfície que emite luz (branca ou
-    // azulada), barra de título, reflexo do vidro, conteúdo e varredura. q: posição a partir
-    // do canto de cima à esquerda (como vista na imagem); sz: tamanho; e: distância às bordas
-    // nos dois eixos; f: tamanho do pixel nos dois eixos; S: estado (ver panelUniforms).
+    // Face de uma tela de computador, de vidro quase transparente: um véu leve de vidro e,
+    // em luz, o contorno com halo, a barra de título, os pontos da janela, o conteúdo e a
+    // varredura. q: posição a partir do canto de cima à esquerda (como vista na imagem);
+    // sz: tamanho; e: distância às bordas nos dois eixos; f: tamanho do pixel nos dois eixos;
+    // S: estado (ver panelUniforms).
     'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S){',
     '  float vis=S.y*uTech;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
-    '  float ins=smoothstep(-f.x,f.x,e.x)*smoothstep(-f.y,f.y,e.y);',
-    '  float bz=smoothstep(-f.x,f.x,e.x-3.)*smoothstep(-f.y,f.y,e.y-3.);',
-    '  vec2 uv=clamp(q0/sz,0.,1.);',
-    '  vec3 scr=lin(dk>.5?mix(SCREEN_TINT_TOP,SCREEN_TINT,uv.y):mix(SCREEN_LIGHT_TOP,SCREEN_LIGHT,uv.y))*SCREEN_EMIT;',
-    '  c=mix(c,lin(SCREEN_FRAME),ins*(1.-bz)*.85*vis);',
-    '  c=mix(c,scr,bz*SCREEN_OPACITY*vis);',
-    // Barra de título com três pontos, como uma janela.
     '  float fm=max(f.x,f.y);',
-    '  c=mix(c,lin(dk>.5?vec3(.80,.87,.93):vec3(.88,.92,.96)),(1.-smoothstep(12.-f.y,12.+f.y,q0.y))*bz*.8*vis);',
+    '  float ins=smoothstep(-f.x,f.x,e.x)*smoothstep(-f.y,f.y,e.y);',
+    '  vec2 uv=clamp(q0/sz,0.,1.);',
+    '  vec3 lum=lin(dk>.5?mix(SCREEN_LUM,TECH_SKY,.35):SCREEN_LUM);',
+    // Véu de vidro.
+    '  vec3 scr=lin(dk>.5?mix(SCREEN_TINT_TOP,SCREEN_TINT,uv.y):mix(SCREEN_LIGHT_TOP,SCREEN_LIGHT,uv.y))*SCREEN_EMIT;',
+    '  c=mix(c,scr,ins*SCREEN_VEIL*vis);',
+    // Contorno de luz, com halo dos dois lados da borda.
+    '  float ed=min(e.x,e.y);',
+    '  float edgeL=max(line(e.x,.8,f.x)*smoothstep(-f.y,0.,e.y),line(e.y,.8,f.y)*smoothstep(-f.x,0.,e.x));',
+    '  c+=lum*(edgeL*SCREEN_EDGE+exp(-abs(ed)/5.)*SCREEN_HALO)*vis;',
+    // Barra de título: uma faixa de luz suave, com três pontos acesos.
+    '  c+=lum*(1.-smoothstep(12.-f.y,12.+f.y,q0.y))*ins*SCREEN_HALO*.6*vis;',
     '  float dots=0.;',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(9.,6.))));',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(16.,6.))));',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(23.,6.))));',
-    '  c=mix(c,lin(TECH_SKY),dots*bz*.6*vis);',
-    // Reflexo do vidro (faixa diagonal suave) e brilho junto às bordas.
-    '  c+=lin(TECH_GLASS)*(1.-smoothstep(0.,.22,abs(uv.x*.7+uv.y-.55)))*bz*.03*vis;',
-    '  c+=lin(TECH_GLOW)*exp(-max(min(e.x,e.y)-3.,0.)/6.)*bz*.06*vis;',
-    // Conteúdo, escrito da esquerda para a direita; some quando a tela fica pequena demais.
+    '  c+=lum*dots*ins*SCREEN_INK*vis;',
+    // Reflexo do vidro (faixa diagonal suave).
+    '  c+=lin(TECH_GLASS)*(1.-smoothstep(0.,.22,abs(uv.x*.7+uv.y-.55)))*ins*.025*vis;',
+    // Conteúdo em luz, escrito da esquerda para a direita; some quando a tela fica pequena demais.
     '  vec2 q=q0-vec2(10.,18.);vec2 bb=sz-vec2(20.,28.);',
     '  float lod=1.-smoothstep(2.5,7.,fm);',
     '  if(lod>0.&&q.x>0.&&q.y>0.&&q.x<bb.x&&q.y<bb.y){',
     '    float ct=hud(q,bb,kd,sd,f.x,f.y)*step(q.x,S.y*bb.x*1.05);',
-    '    c=mix(c,lin(TECH_SKY),min(ct,1.)*.75*lod*vis);',
+    '    c+=lum*min(ct,1.)*SCREEN_INK*lod*vis;',
     '  }',
-    '  c+=lin(TECH_GLOW)*line(q0.y-sz.y*fract(uProg*2.2+sd),.8,f.y)*bz*.08*vis;',
+    '  c+=lum*line(q0.y-sz.y*fract(uProg*2.2+sd),.8,f.y)*ins*SCREEN_HALO*.7*vis;',
     '}',
     // Tela da parede à frente: desenha a espessura (soltas) e devolve os parâmetros da face
     // (q: posição e tamanho; e: distância às bordas e tamanho do pixel). b: retângulo;
@@ -437,7 +443,7 @@
     '    float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
     '    float tp2=(uW-S.x+PANEL_T)/abs(d.x);float z2=uCam-tp2,y2=EYE+tp2*d.y;',
     '    float bk=smoothstep(-fz,fz,min(z2-b.x,b.y-z2))*smoothstep(-fy,fy,min(y2-b.z,b.w-y2));',
-    '    c=mix(c,lin(mix(TECH_SKY,TECH_GLASS,.35)),bk*(1.-ins)*.7*S.y*uTech);',
+    '    c+=lin(SCREEN_LUM)*bk*(1.-ins)*SCREEN_EDGE*.45*S.y*uTech;',
     '  }',
     '  q=vec4(s>0.?z-b.x:b.y-z,y-b.z,b.y-b.x,b.w-b.z);e=vec4(dz,dy,fz,fy);',
     '}',
@@ -736,12 +742,12 @@
     '    if(surf==0.){',
     '      vec2 gr=glasses(d,1.,16.+dz*.05,Lm,Fm,Zm,Sm)*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.);',
     // A cor da tela acesa aparece no reflexo.
-    '      if(Sm.y>.01)col=mix(col,lin(step(9.5,floor(Sm.w))>.5?SCREEN_TINT:SCREEN_LIGHT)*SCREEN_EMIT,min(gr.x*2.2,1.)*.55*uTech);',
+    '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
-    '      col=mix(col,lin(TECH_GLASS),g.x*.15*uTech);',
-    '      col=mix(col,lin(TECH_SKY),g.y*.46*uTech);',
+    '      col=mix(col,lin(TECH_GLASS),g.x*SCREEN_VEIL*.4*uTech);',
+    '      col+=lin(SCREEN_LUM)*g.y*SCREEN_EDGE*.6*uTech;',
     '    }',
     // Uma face por pixel: a tela da parede, se houver (fica à frente da abóbada); senão a do
     // teto. Assim o desenho da face existe uma vez só no shader.
