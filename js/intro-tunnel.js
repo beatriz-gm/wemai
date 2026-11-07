@@ -34,9 +34,11 @@
    Camada de tecnologia (toda procedural: não depende de nenhuma imagem)
      - linhas estruturais finas no piso, paredes e abóbada, sempre no sentido do
        túnel (nervuras em arco leriam como "múltiplas passagens");
-     - planos de vidro reais, paralelos às paredes, espalhados sem ordem (WALL_PANELS).
-       Cada um sai da parede num momento próprio, e alguns voltam para dentro dela
-       durante a travessia (uProg). Ficam fora do cone de visão do vão, por isso nunca
+     - telas de vidro paralelas às paredes, espalhadas sem ordem (WALL_PANELS). Umas são
+       embutidas na parede e acendem no lugar; outras saem dela, soltas, com espessura,
+       sombra na parede e uma leve flutuação, e algumas voltam para dentro durante a
+       travessia (uProg). Têm brilho próprio e conteúdo fictício animado (código, gráficos,
+       aplicativos), sem texto legível. Ficam fora do cone de visão do vão, por isso nunca
        passam na frente da paisagem;
      - molduras, cantos de seleção, marcadores e linhas de conexão, sem conteúdo;
      - reflexo dos planos no piso e luz discreta contornando vão e abóbada.
@@ -54,8 +56,9 @@
   var TEXTURES = { data: 'img/tunel-mineral-data.jpg', normal: 'img/tunel-mineral-normal.jpg' };
 
   /* Telas na parede: lado (1 direita, −1 esquerda), z inicial e final, y de cima e de baixo,
-     quanto se afastam da parede, quando saem e quando voltam para dentro dela (progresso da
-     câmera; 2 = não voltam). Todas ficam fora do cone de visão do vão:
+     quanto se afastam da parede (abaixo de LOOSE_MIN, a tela é embutida na parede), quando
+     surgem e quando voltam para dentro dela (progresso da câmera; 2 = não voltam). Todas
+     ficam fora do cone de visão do vão:
      x = meia-largura − afastamento > 252·(1 − z/2400). As duas paredes têm o mesmo número de
      telas. */
   var WALL_PANELS = [
@@ -82,15 +85,46 @@
   /* Código GLSL das telas. As duas paredes dividem o mesmo código: cada posição escolhe os
      valores do lado do pixel, então o teste roda uma vez só. Os valores entram como
      constantes, sem uniforms. */
-  function panelCode() {
-    function f(v) { return (+v).toFixed(3); }
-    function vals(q) { return { b: 'vec4(' + [q[1], q[2], q[3], q[4]].map(f) + ')', m: 'vec3(' + [q[5], q[6], q[7]].map(f) + ')' }; }
-    var right = [], left = [], calls = [];
-    WALL_PANELS.forEach(function (q) { (q[0] > 0 ? right : left).push(vals(q)); });
-    for (var i = 0; i < Math.min(right.length, left.length); i++) {
-      calls.push('wallPick(best,Z,G,iv,dy,mir,r?' + right[i].b + ':' + left[i].b + ',r?' + right[i].m + ':' + left[i].m + ');');
-    }
-    return 'void pickPanels(bool r,inout float best,inout vec4 Z,inout float G,float iv,float dy,float mir){' + calls.join('') + '}';
+  var LOOSE_MIN = 22;
+  // Conteúdo de cada tela, na ordem da tabela: 0 código, 1 barras, 2 gráfico, 3 aplicativos,
+  // 4 medidor, 5 linhas de texto.
+  var PANEL_KINDS = [2, 0, 3, 1, 4, 5, 0, 3, 2, 5, 1, 4];
+
+  var PANEL_SLOTS = 9;   // telas por parede (o shader percorre esse número em cada lado)
+  var WALL_GAP = 2.5, PANEL_SPEED = 6.5;
+
+  function smoothstepJs(a, b, x) { var t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); }
+
+  /* Posição e estado de cada tela no progresso p da câmera, nos arrays do shader: box
+     (z inicial e final, y de cima e de baixo, já com o movimento) e state (afastamento da
+     parede, visibilidade, solta = 1, tipo + semente). Posições 0–8: parede direita;
+     9–17: esquerda. Calculado uma vez por quadro, para o shader não repetir a conta em cada
+     pixel. */
+  function panelUniforms(p, box, state) {
+    var slot = [0, PANEL_SLOTS];
+    box.fill(0); state.fill(0);
+    WALL_PANELS.forEach(function (q, i) {
+      var side = q[0] > 0 ? 0 : 1;
+      var k = slot[side]++;
+      if (k >= PANEL_SLOTS * (side + 1)) return;
+      var seed = PANEL_KINDS[i % PANEL_KINDS.length] + ((i * .618) % 1) * .98;
+      var a = smoothstepJs(q[6], q[6] + .07, p) * (1 - smoothstepJs(q[7], q[7] + .07, p));
+      var g, vis, dy = 0, dz = 0, loose = q[5] >= LOOSE_MIN;
+      if (!loose) {
+        // Embutida: acende no lugar, com uma leve oscilação enquanto liga.
+        g = WALL_GAP;
+        vis = a < 1 ? a * (.55 + .45 * ((a * 6.7) % 1 >= .35 ? 1 : 0)) : a;
+      } else {
+        // Solta: sai da parede (e volta) e flutua de leve no lugar.
+        var w = p * PANEL_SPEED + seed * 6.283;
+        g = Math.max((q[5] + 4 * Math.sin(w * 1.3)) * a, 1);
+        vis = smoothstepJs(0, .3, a);
+        dy = 5 * Math.sin(w * .8 + 1) * a;
+        dz = 9 * Math.sin(w * .6 + 2) * a;
+      }
+      box.set([q[1] + dz, q[2] + dz, q[3] + dy, q[4] + dy], k * 4);
+      state.set([g, vis, loose ? 1 : 0, seed], k * 4);
+    });
   }
 
   // Constantes da cena, injetadas no shader (mesma geometria usada pelo SVG da logo).
@@ -102,6 +136,8 @@
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
+      'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '];',
+      '#define SLOTS ' + PANEL_SLOTS,
       '#define EYE ' + f(g.eye),
       '#define FLOOR ' + f(g.floor),
       '#define SPRING ' + f(g.spring),
@@ -114,7 +150,6 @@
       '#define JAMB_X ' + f(g.jambX),
       '#define JAMB_Y ' + f(g.jambY),
       SHADER_HEAD,
-      panelCode(),
       SHADER_BODY
     ].join('\n');
   }
@@ -194,58 +229,142 @@
     'const vec3 TECH_LINE=vec3(.239,.388,.537);',
     'const vec3 TECH_GLASS=vec3(.93,.97,1.);',
     'const vec3 TECH_LIGHT=vec3(1.,.97,.93);',
+    'const vec3 TECH_GLOW=vec3(.86,.94,1.);',   // luz fria das telas
     'const float GLASS_LINK=70.;',       // a linha de conexão vai além do vidro
+    'const float PANEL_T=5.;',          // espessura das telas soltas
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
-    // Plano de vidro em x = s·(uW − g): g é o afastamento da parede neste instante (com g
-    // perto de zero, a tela está entrando ou saindo da parede). Retorna (corpo, traços).
+    // Plano de vidro em x = s·(uW − g), com g o afastamento da parede neste instante.
+    // b: z inicial e final, y de cima e de baixo. vis: visibilidade. Retorna (corpo, traços);
+    // L e F levam a posição no vidro e o tamanho do pixel para o acabamento (panelExtras).
     // mir = 1: visto no reflexo do piso (y espelhado), com contornos mais suaves (soft).
-    'vec2 glass(vec2 d,float s,float z0,float z1,float y0,float y1,float g,float mir,float soft){',
+    'vec2 glass(vec2 d,float s,vec4 b,float g,float vis,float mir,float soft,out vec4 L,out vec2 F){',
+    '  L=vec4(0.);F=vec2(1.);',
     '  float sx=s*d.x;if(sx<1e-4)return vec2(0.);',
+    '  float z0=b.x,z1=b.y,y0=b.z,y1=b.w;',
     '  float X=uW-g;float tp=X/sx;float z=uCam-tp;',
     '  float zc=z1+GLASS_LINK;',
-    '  if(z<z0-4.||z>zc+6.)return vec2(0.);',
+    '  if(z<z0-24.||z>zc+6.)return vec2(0.);',
     '  float y=EYE+tp*d.y;if(mir>.5)y=2.*FLOOR-y;',
-    '  if(y<y0-4.||y>y1+4.)return vec2(0.);',
+    '  if(y<y0-6.||y>y1+6.)return vec2(0.);',
     '  float fy=tp/uF+soft;float fz=tp*tp/(X*uF)+soft;',
     '  float dz=min(z-z0,z1-z);float dy=min(y-y0,y1-y);',
+    '  L=vec4(z,y,dz,dy);F=vec2(fz,fy);',
     '  float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
-    // Junto da parede a tela ainda se confunde com ela: ganha corpo ao se afastar.
-    '  float rv=smoothstep(1.,12.,g);',
     // Corpo: um pouco mais denso do lado da saída, onde pega mais luz.
     '  float body=ins*(.62+.38*(1.-smoothstep(z0,z1,z)));',
     '  float fr=max(line(dz,.7,fz)*smoothstep(-fy,0.,dy),line(dy,.7,fy)*smoothstep(-fz,0.,dz));',
     // Cantos de seleção: o traço da moldura se reforça só junto aos vértices.
     '  float cm=(1.-smoothstep(38.,46.,dz))*(1.-smoothstep(20.,24.,dy));',
     '  float st=fr*(.30+.70*cm);',
-    // Marcador discreto: um traço curto no alto do plano, sem conteúdo.
+    // Marcador discreto: um traço curto no alto do plano.
     '  st=max(st,line(y-(y0+22.),.7,fy)*step(z0+26.,z)*step(z,z0+92.)*ins*.55);',
     // Linha de conexão até um pequeno nó, além da borda do vidro.
     '  float yc=y0+(y1-y0)*.32;',
     '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55);',
     '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6);',
-    '  return vec2(body,st)*rv;',
+    '  return vec2(body,st)*vis;',
     '}',
-    // Afastamento de uma tela agora: sai da parede em m.y e, se m.z < 1, volta em m.z.
-    'float wallGap(vec3 m){return m.x*smoothstep(m.y,m.y+.07,uProg)*(1.-smoothstep(m.z,m.z+.07,uProg));}',
     // Teste barato em cada tela; o desenho completo é feito só para a mais próxima da câmera.
-    // Quem é atingida só pela linha de conexão perde para qualquer vidro atingido de fato.
-    'void wallPick(inout float best,inout vec4 Z,inout float G,float iv,float dy,float mir,vec4 b,vec3 m){',
-    '  float g=wallGap(m);if(g<.5)return;',
-    '  float tp=(uW-g)*iv;float z=uCam-tp;float y=EYE+tp*dy;if(mir>.5)y=2.*FLOOR-y;',
-    '  if(z<b.x-4.||z>b.y+GLASS_LINK+6.||y<b.z-4.||y>b.w+4.)return;',
-    '  float sc=z<b.y?tp:tp+1e5;',
-    '  if(sc<best){best=sc;Z=b;G=g;}',
+    // Quem é atingida só pela borda (espessura, linha de conexão) perde para um vidro de fato.
+    // b: retângulo; st: (afastamento, visibilidade, solta, tipo + semente) — ver panelUniforms.
+    'void wallPick(inout float best,inout vec4 Z,inout vec4 S,float iv,float dy,float mir,vec4 b,vec4 st){',
+    '  if(st.y<.01)return;',
+    '  float tp=(uW-st.x)*iv;float z=uCam-tp;float y=EYE+tp*dy;if(mir>.5)y=2.*FLOOR-y;',
+    '  if(z<b.x-24.||z>b.y+GLASS_LINK+6.||y<b.z-6.||y>b.w+6.)return;',
+    '  float sc=z>b.x&&z<b.y?tp:tp+1e5;',
+    '  if(sc<best){best=sc;Z=b;S=st;}',
+    '}',
+    'void pickPanels(bool r,inout float best,inout vec4 Z,inout vec4 S,float iv,float dy,float mir){',
+    '  for(int i=0;i<SLOTS;i++)wallPick(best,Z,S,iv,dy,mir,r?uPB[i]:uPB[i+SLOTS],r?uPS[i]:uPS[i+SLOTS]);',
+    '}',
+    // Luz da tela na parede: brilho frio ao redor e, nas soltas, a sombra (a luz vem da
+    // saída: a sombra cai do lado da câmera). Retorna (sombra, brilho).
+    'vec2 panelLight(vec3 P,vec4 b,vec4 st){',
+    '  if(st.y<.01)return vec2(0.);',
+    '  vec2 c=vec2(b.x+b.y,b.z+b.w)*.5,h=vec2(b.y-b.x,b.w-b.z)*.5;',
+    '  float o=length(max(abs(P.zy-c)-h,0.));',
+    '  float gl=exp(-o/(8.+st.x*.6))*st.y;',
+    '  if(st.z<.5)return vec2(0.,gl*.6);',
+    '  float f=(uW-st.x)/uW;vec2 e=abs(vec2(P.z*f,430.+(P.y-430.)*f)-c)-h;',
+    '  float pen=3.+st.x*.5;',
+    '  return vec2((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl);',
+    '}',
+    'vec2 wallLight(bool r,vec3 P){',
+    '  vec2 o=vec2(0.);',
+    '  for(int i=0;i<SLOTS;i++)o=max(o,panelLight(P,r?uPB[i]:uPB[i+SLOTS],r?uPS[i]:uPS[i+SLOTS]));',
+    '  return o;',
+    '}',
+    // Trecho de x entre a e b, com antialiasing.
+    'float seg(float x,float a,float b,float f){return smoothstep(a-f,a+f,x)*(1.-smoothstep(b-f,b+f,x));}',
+    // Conteúdo fictício e animado, sem texto legível. q: posição na área útil; b: tamanho.
+    'float hud(vec2 q,vec2 b,float kd,float sd,float fu,float fv){',
+    '  if(kd<.5){',                         // código: linhas recuadas, em trechos
+    '    float i=floor(q.y/9.);float y=q.y-(i+.5)*9.;float h=hash(vec2(i,sd*91.));',
+    '    float ind=floor(h*3.)*10.;float l1=ind+12.+h*28.;float l2=l1+8.+fract(h*7.)*36.;',
+    '    float on=max(seg(q.x,ind,l1,fu),seg(q.x,l1+6.,l2,fu)*step(.3,fract(h*13.)));',
+    '    return line(y,.9,fv)*on*(i<.5?1.:.7);',
+    '  }',
+    '  if(kd<1.5){',                        // barras que oscilam
+    '    float w=b.x/7.;float i=floor(q.x/w);float x=q.x-(i+.5)*w;',
+    '    float h=(.2+.7*hash(vec2(i,sd*53.)))*(.85+.15*sin(uProg*18.+i*1.7))*b.y;',
+    '    float f=(1.-smoothstep(w*.28-fu,w*.28+fu,abs(x)))*smoothstep(b.y-h-fv,b.y-h+fv,q.y);',
+    '    return max(f*.6,line(q.y-b.y,.7,fv));',
+    '  }',
+    '  if(kd<2.5){',                        // gráfico de linha que corre
+    '    float y=b.y*(.2+.6*vnoise(vec2(q.x/b.x*4.5+uProg*3.+sd*17.,sd*31.)));',
+    '    float g=max(line(mod(q.y,b.y/3.)-b.y/6.,.45,fv)*.3,line(q.y-b.y,.7,fv));',
+    '    return max(max(line(q.y-y,1.,fv*1.6),smoothstep(y,y+b.y,q.y)*.25*step(y,q.y)),g);',
+    '  }',
+    '  if(kd<3.5){',                        // aplicativos: ícones com uma linha embaixo
+    '    vec2 cs=b/vec2(3.,2.);vec2 c=floor(q/cs);vec2 l=q-(c+vec2(.5,.4))*cs;',
+    '    float r=min(cs.x,cs.y)*.24;float fm=max(fu,fv);',
+    '    float sq=length(max(abs(l)-r*.6,0.))-r*.4;float h=hash(c+sd*37.);',
+    '    float ic=h>.5?1.-smoothstep(-fm,fm,sq):line(sq,.6,fm);',
+    '    return max(ic*.75,line(l.y-r*1.6,.7,fv)*seg(l.x,-r,r*.5,fu)*.6);',
+    '  }',
+    '  if(kd<4.5){',                        // medidor: anel com um arco que avança
+    '    vec2 l=q-b*.5;float r=min(b.x,b.y)*.34;float ln=length(l);',
+    '    float an=atan(l.y,l.x)/(2.*PI)+.5;float arc=step(an,.25+.5*fract(sd+uProg*.6));',
+    '    return max(line(ln-r,.6,fu)*.5,line(ln-r,1.5,fu)*arc);',
+    '  }',
+    // Linhas de texto, sem letras.
+    '  float i=floor(q.y/11.);float y=q.y-(i+.5)*11.;float len=i<.5?.42:.3+.65*hash(vec2(i,sd*91.));',
+    '  return line(y,i<.5?1.6:.9,fv)*(1.-smoothstep(len*b.x-fu,len*b.x+fu,q.x))*(i<.5?1.:.7);',
+    '}',
+    // Acabamento da tela da frente: espessura (soltas), brilho interno, borda do lado da
+    // saída acesa, conteúdo e varredura. b: retângulo; S: (afastamento, visibilidade,
+    // solta se > 0, tipo + semente); L e F vêm de glass.
+    'void panelExtras(inout vec3 c,vec2 d,vec4 b,vec4 S,vec4 L,vec2 F){',
+    '  float s=d.x>0.?1.:-1.;float z=L.x,y=L.y,dz=L.z,dy=L.w,fz=F.x,fy=F.y;',
+    '  float vis=S.y*uTech;',
+    '  float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
+    '  if(S.z>.5){',
+    '    float tp2=(uW-S.x+PANEL_T)/abs(d.x);float z2=uCam-tp2,y2=EYE+tp2*d.y;',
+    '    float bk=smoothstep(-fz,fz,min(z2-b.x,b.y-z2))*smoothstep(-fy,fy,min(y2-b.z,b.w-y2));',
+    '    c=mix(c,lin(mix(TECH_LINE,TECH_GLASS,.5)),bk*(1.-ins)*.55*vis);',
+    '  }',
+    '  c+=lin(TECH_GLOW)*exp(-max(min(dz,dy),0.)/7.)*ins*.14*vis;',
+    '  c+=lin(TECH_LIGHT)*line(z-b.x,1.,fz)*smoothstep(-fy,0.,dy)*.35*vis;',
+    // O conteúdo começa abaixo do marcador e é escrito da esquerda para a direita na tela;
+    // some quando a tela fica estreita demais na imagem.
+    '  float kd=floor(S.w),sd=fract(S.w);',
+    '  vec2 q=vec2(s>0.?z-b.x:b.y-z,y-b.z)-vec2(10.,32.);vec2 bb=vec2(b.y-b.x,b.w-b.z)-vec2(20.,44.);',
+    '  float lod=1.-smoothstep(2.5,7.,fz);',
+    '  if(lod>0.&&q.x>0.&&q.y>0.&&q.x<bb.x&&q.y<bb.y){',
+    '    float ct=hud(q,bb,kd,sd,fz,fy)*step(q.x,S.y*bb.x*1.05);',
+    '    c=mix(c,lin(TECH_LINE),min(ct,1.)*.42*lod*vis);',
+    '  }',
+    '  c+=lin(TECH_GLOW)*line(y-mix(b.z,b.w,fract(uProg*2.2+sd)),.8,fy)*ins*.10*vis;',
     '}'
   ].join('\n');
 
-  // Depois do código das telas (pickPanels, gerado em JS).
   var SHADER_BODY = [
-    'vec2 glasses(vec2 d,float mir,float soft){',
-    '  float best=1e9;vec4 Z=vec4(0.);float G=0.;',
-    '  pickPanels(d.x>0.,best,Z,G,1./abs(d.x),d.y,mir);',
-    '  if(best>=1e9)return vec2(0.);',
-    '  return glass(d,d.x>0.?1.:-1.,Z.x,Z.y,Z.z,Z.w,G,mir,soft);',
+    'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
+    '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
+    '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
+    '  if(best>=1e9){S=vec4(0.);return vec2(0.);}',
+    '  return glass(d,d.x>0.?1.:-1.,Z,S.x,S.y,mir,soft,L,F);',
     '}',
 
     'void main(){',
@@ -447,6 +566,12 @@
     '    float nearK=.45+.55*smoothstep(200.,1000.,t);',
     '    col=mix(col,lin(TECH_LINE),min(ln*.20+mk*.30,1.)*nearK*uTech*techReveal(P.z));',
     '  }',
+    // Telas na parede: sombra das soltas e brilho frio ao redor de todas.
+    '  if(uTech>.001&&surf==1.&&P.z>0.){',
+    '    vec2 wl=wallLight(P.x>0.,P);',
+    '    col*=1.-.42*wl.x*uTech;',
+    '    col+=lin(TECH_GLOW)*wl.y*.14*uTech;',
+    '  }',
     // Luz discreta nas bordas: contorna o vão e o encontro da abóbada com a parede do fundo.
     '  if(uTech>.001&&surf==3.){',
     '    float sdv=portalSd(P.xy);',
@@ -481,15 +606,17 @@
     '    }',
     '  }',
 
-    // Planos de vidro à frente da superfície; no piso, o reflexo delicado deles.
+    // Telas à frente da superfície; no piso, o reflexo delicado delas.
     '  if(uTech>.001){',
-    '    vec2 g=glasses(d,0.,0.);',
+    '    vec4 L,Z,S,Lm,Zm,Sm;vec2 F,Fm;',
+    '    vec2 g=glasses(d,0.,0.,L,F,Z,S);',
     // O reflexo perde nitidez e força à medida que o piso se aproxima da câmera.
-    '    if(surf==0.){vec2 gr=glasses(d,1.,16.+dz*.05);g=max(g,gr*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.));}',
+    '    if(surf==0.){vec2 gr=glasses(d,1.,16.+dz*.05,Lm,Fm,Zm,Sm);g=max(g,gr*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.));}',
     '    if(g.x+g.y>0.){',
     '      col=mix(col,lin(TECH_GLASS),g.x*.15*uTech);',
     '      col=mix(col,lin(TECH_LINE),g.y*.46*uTech);',
     '    }',
+    '    if(S.y>.01)panelExtras(col,d,Z,S,L,F);',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
@@ -558,7 +685,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand'];
+      'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
 
@@ -643,6 +770,7 @@
     // Cor média de cada faixa da abertura (4 faixas retas + arco), vista agora na tela.
     // Sem a foto, um degradê do horizonte quente ao céu.
     var bands = new Float32Array(15);
+    var panelBox = new Float32Array(8 * PANEL_SLOTS), panelState = new Float32Array(8 * PANEL_SLOTS);
     function computeBands(s) {
       var g = geometry, k = s.focal / s.camera, ph = s.photo;
       var rects = [];
@@ -722,6 +850,9 @@
       gl.uniform1f(u.uTech, s.tech);
       gl.uniform1f(u.uBuild, s.build);
       gl.uniform1f(u.uProg, s.p);
+      panelUniforms(s.p, panelBox, panelState);
+      gl.uniform4fv(u.uPB, panelBox);
+      gl.uniform4fv(u.uPS, panelState);
       gl.uniform4f(u.uPh, s.photo.x, s.photo.y, s.photo.w, s.photo.h);
       gl.uniform1f(u.uPhOk, photoOk ? 1 : 0);
       gl.uniform1f(u.uTexOk, texCount === 2 ? 1 : 0);
