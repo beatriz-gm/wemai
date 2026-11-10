@@ -129,6 +129,17 @@
     fade: [.9, 1]           // o que restar da arquitetura nas bordas se dissolve na chegada
   };
 
+  /* Celular (pointer: coarse): o wordmark e a assinatura se dissolvem acompanhando o
+     crescimento do arco (o avanço da câmera, travel), e não um relógio próprio. Começam
+     a sumir com a aproximação e se apagam até travel = WORDMARK_TRAVEL (p ≈ .19), quando
+     as superfícies ainda mal surgem: as letras não ficam sobre as paredes. A curva termina
+     suave e, como o avanço também parte devagar, não há início nem fim bruscos (no máximo
+     ~1,1 de opacidade por segundo, menos que no desktop). As pontas do arco sobre o vão
+     somem um pouco mais devagar, para o arco não mudar de forma de repente. */
+  var COARSE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  var WORDMARK_TRAVEL = .12;
+  if (COARSE) P.tips = [.08, .26];
+
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
      Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
@@ -305,7 +316,9 @@
 
     placePlane(markPlane, view.focal / camera);
     mark.style.opacity = easeInOutSine(phase(t, T.markIn));
-    wordmark.style.opacity = 1 - easeInOutSine(phase(t, T.wordmarkOut));
+    wordmark.style.opacity = COARSE
+      ? (1 - Math.sin(phase(travel, [0, WORDMARK_TRAVEL]) * Math.PI / 2)).toFixed(4)
+      : 1 - easeInOutSine(phase(t, T.wordmarkOut));
     face.style.opacity = scene.tunnel.light.toFixed(4);   // a borda interna do arco ganha luz
     setTips(smooth(p, P.tips));
     setArcTone(smooth(p, P.arcTone));
