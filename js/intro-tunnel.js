@@ -48,6 +48,8 @@
      - molduras, cantos de seleção, marcadores e linhas de conexão, sem conteúdo;
      - reflexo dos planos no piso e luz discreta contornando vão e abóbada.
      Ela nasce no vão e vem em direção à câmera (uBuild), com intensidade uTech.
+     No celular (pointer: coarse) toda essa camada é mais contida (TECH_MOBILE): a
+     arquitetura é lida primeiro e a tecnologia aparece ao olhar melhor.
 
    Este arquivo só desenha. O tempo e a câmera ficam em js/intro.js.
    ========================================================================== */
@@ -168,9 +170,21 @@
     });
   }
 
+  /* Presença da camada de tecnologia (1 = como no desktop). No celular ela é mais contida:
+     o túnel é lido primeiro como arquitetura e a tecnologia aparece ao olhar melhor.
+     veil: véu de vidro; edge: contorno e halo das telas; ink: detalhes internos (barra,
+     pontos, conteúdo, varredura); mark: cantos, marcadores e linhas de conexão; glow: luz
+     das telas na parede e no piso; ceil: telas do teto (além dos fatores acima); ceilLines:
+     linhas do teto; lines: linhas das paredes e do piso; rim: luz no contorno do vão;
+     refl: reflexo das telas no piso; warm: quanto a luz das telas puxa para o branco quente
+     da paisagem, em vez do azul frio. */
+  var TECH_DESKTOP = { veil: 1, edge: 1, ink: 1, mark: 1, glow: 1, ceil: 1, ceilLines: 1, lines: 1, rim: 1, refl: 1, warm: 0 };
+  var TECH_MOBILE = { veil: .7, edge: .6, ink: .4, mark: .35, glow: .55, ceil: .5, ceilLines: .55, lines: .85, rim: .75, refl: .6, warm: .3 };
+
   // Constantes da cena, injetadas no shader (mesma geometria usada pelo SVG da logo).
-  function fragmentSource(g) {
+  function fragmentSource(g, touch) {
     function f(v) { return (+v).toFixed(3); }
+    var k = touch ? TECH_MOBILE : TECH_DESKTOP;
     return [
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
@@ -179,6 +193,10 @@
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
       '#define SLOTS ' + PANEL_SLOTS,
+      '#define K_VEIL ' + f(k.veil), '#define K_EDGE ' + f(k.edge), '#define K_INK ' + f(k.ink),
+      '#define K_MARK ' + f(k.mark), '#define K_GLOW ' + f(k.glow), '#define K_CEIL ' + f(k.ceil),
+      '#define K_CEIL_LINES ' + f(k.ceilLines), '#define K_LINES ' + f(k.lines), '#define K_RIM ' + f(k.rim),
+      '#define K_REFL ' + f(k.refl), '#define K_WARM ' + f(k.warm),
       '#define EYE ' + f(g.eye),
       '#define FLOOR ' + f(g.floor),
       '#define SPRING ' + f(g.spring),
@@ -306,13 +324,13 @@
     '  float fr=max(line(dz,.7,fz)*smoothstep(-fy,0.,dy),line(dy,.7,fy)*smoothstep(-fz,0.,dz));',
     // Cantos de seleção: o traço da moldura se reforça só junto aos vértices.
     '  float cm=(1.-smoothstep(38.,46.,dz))*(1.-smoothstep(20.,24.,dy));',
-    '  float st=fr*(.30+.70*cm);',
+    '  float st=fr*(.30+.70*cm*K_MARK);',
     // Marcador discreto: um traço curto no alto do plano.
-    '  st=max(st,line(y-(y0+22.),.7,fy)*step(z0+26.,z)*step(z,z0+92.)*ins*.55);',
+    '  st=max(st,line(y-(y0+22.),.7,fy)*step(z0+26.,z)*step(z,z0+92.)*ins*.55*K_MARK);',
     // Linha de conexão até um pequeno nó, além da borda do vidro.
     '  float yc=y0+(y1-y0)*.32;',
-    '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55);',
-    '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6);',
+    '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55*K_MARK);',
+    '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6*K_MARK);',
     '  return vec2(body,st)*vis;',
     '}',
     // Teste barato em cada tela; o desenho completo é feito só para a mais próxima da câmera.
@@ -387,27 +405,27 @@
     // varredura. q: posição a partir do canto de cima à esquerda (como vista na imagem);
     // sz: tamanho; e: distância às bordas nos dois eixos; f: tamanho do pixel nos dois eixos;
     // S: estado (ver panelUniforms).
-    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S){',
-    '  float vis=S.y*uTech;',
+    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf){',
+    '  float vis=S.y*uTech*kf;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
     '  float fm=max(f.x,f.y);',
     '  float ins=smoothstep(-f.x,f.x,e.x)*smoothstep(-f.y,f.y,e.y);',
     '  vec2 uv=clamp(q0/sz,0.,1.);',
-    '  vec3 lum=lin(dk>.5?mix(SCREEN_LUM,TECH_SKY,.35):SCREEN_LUM);',
+    '  vec3 lum=mix(lin(dk>.5?mix(SCREEN_LUM,TECH_SKY,.35):SCREEN_LUM),lin(TECH_LIGHT),K_WARM);',
     // Véu de vidro.
     '  vec3 scr=lin(dk>.5?mix(SCREEN_TINT_TOP,SCREEN_TINT,uv.y):mix(SCREEN_LIGHT_TOP,SCREEN_LIGHT,uv.y))*SCREEN_EMIT;',
-    '  c=mix(c,scr,ins*SCREEN_VEIL*vis);',
+    '  c=mix(c,scr,ins*SCREEN_VEIL*K_VEIL*vis);',
     // Contorno de luz, com halo dos dois lados da borda.
     '  float ed=min(e.x,e.y);',
     '  float edgeL=max(line(e.x,.8,f.x)*smoothstep(-f.y,0.,e.y),line(e.y,.8,f.y)*smoothstep(-f.x,0.,e.x));',
-    '  c+=lum*(edgeL*SCREEN_EDGE+exp(-abs(ed)/5.)*SCREEN_HALO)*vis;',
+    '  c+=lum*(edgeL*SCREEN_EDGE+exp(-abs(ed)/5.)*SCREEN_HALO)*K_EDGE*vis;',
     // Barra de título: uma faixa de luz suave, com três pontos acesos.
-    '  c+=lum*(1.-smoothstep(12.-f.y,12.+f.y,q0.y))*ins*SCREEN_HALO*.6*vis;',
+    '  c+=lum*(1.-smoothstep(12.-f.y,12.+f.y,q0.y))*ins*SCREEN_HALO*.6*K_INK*vis;',
     '  float dots=0.;',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(9.,6.))));',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(16.,6.))));',
     '  dots=max(dots,1.-smoothstep(2.,2.+fm,length(q0-vec2(23.,6.))));',
-    '  c+=lum*dots*ins*SCREEN_INK*vis;',
+    '  c+=lum*dots*ins*SCREEN_INK*K_INK*vis;',
     // Reflexo do vidro (faixa diagonal suave).
     '  c+=lin(TECH_GLASS)*(1.-smoothstep(0.,.22,abs(uv.x*.7+uv.y-.55)))*ins*.025*vis;',
     // Conteúdo em luz, escrito da esquerda para a direita; some quando a tela fica pequena demais.
@@ -415,9 +433,9 @@
     '  float lod=1.-smoothstep(2.5,7.,fm);',
     '  if(lod>0.&&q.x>0.&&q.y>0.&&q.x<bb.x&&q.y<bb.y){',
     '    float ct=hud(q,bb,kd,sd,f.x,f.y)*step(q.x,S.y*bb.x*1.05);',
-    '    c+=lum*min(ct,1.)*SCREEN_INK*lod*vis;',
+    '    c+=lum*min(ct,1.)*SCREEN_INK*K_INK*lod*vis;',
     '  }',
-    '  c+=lum*line(q0.y-sz.y*fract(uProg*2.2+sd),.8,f.y)*ins*SCREEN_HALO*.7*vis;',
+    '  c+=lum*line(q0.y-sz.y*fract(uProg*2.2+sd),.8,f.y)*ins*SCREEN_HALO*.7*K_INK*vis;',
     '}',
     // Tela da parede à frente: desenha a espessura (soltas) e devolve os parâmetros da face
     // (q: posição e tamanho; e: distância às bordas e tamanho do pixel). b: retângulo;
@@ -428,7 +446,7 @@
     '    float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
     '    float tp2=(uW-S.x+PANEL_T)/abs(d.x);float z2=uCam-tp2,y2=EYE+tp2*d.y;',
     '    float bk=smoothstep(-fz,fz,min(z2-b.x,b.y-z2))*smoothstep(-fy,fy,min(y2-b.z,b.w-y2));',
-    '    c+=lin(SCREEN_LUM)*bk*(1.-ins)*SCREEN_EDGE*.45*S.y*uTech;',
+    '    c+=lin(SCREEN_LUM)*bk*(1.-ins)*SCREEN_EDGE*.45*K_EDGE*S.y*uTech;',
     '  }',
     '  q=vec4(s>0.?z-b.x:b.y-z,y-b.z,b.y-b.x,b.w-b.z);e=vec4(dz,dy,fz,fy);',
     '}',
@@ -458,8 +476,8 @@
     '    float sc=a>b.x&&a<b.y&&z>b.z&&z<b.w?t-dt:t-dt+1e5;',
     '    if(sc<best){best=sc;Z=b;S=st;hit=vec2(a,z);}',
     '  }',
-    '  col*=1.-.42*sh*uTech;',
-    '  col+=lin(TECH_GLOW)*gl*.30*uTech;',
+    '  col*=1.-.42*sh*uTech*K_CEIL*K_CEIL;',
+    '  col+=lin(TECH_GLOW)*gl*.30*K_GLOW*K_CEIL*uTech;',
     '  if(best>=1e9)return;',
     '  float fp=(best>=1e5?best-1e5:best)/uF;',
     // Na imagem, o lado da câmera (z maior) fica em cima.
@@ -674,13 +692,14 @@
     '    }',
     // Mais fracas perto da câmera, onde a perspectiva as engrossa.
     '    float nearK=.45+.55*smoothstep(200.,1000.,t);',
-    '    col=mix(col,lin(TECH_LINE),min(ln*.20+mk*.30,1.)*nearK*uTech*techReveal(P.z));',
+    '    float kl=surf==2.?K_CEIL_LINES:K_LINES;if(surf==2.)mk*=K_CEIL_LINES;',
+    '    col=mix(col,lin(TECH_LINE),min(ln*.20+mk*.30,1.)*kl*nearK*uTech*techReveal(P.z));',
     '  }',
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
     '    vec2 wl=wallLight(P.x>0.,P);',
     '    col*=1.-.42*wl.x*uTech*surf;',
-    '    col+=lin(TECH_GLOW)*wl.y*.30*uTech;',
+    '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
     '  vec4 cq=vec4(0.),ce=vec4(0.),cs=vec4(0.);',
@@ -691,7 +710,7 @@
     '    float de=min(uW-abs(P.x),FLOOR-P.y);',
     '    if(P.y<SPRING)de=min(de,(1.-length(vec2(P.x/uW,(P.y-SPRING)/uV)))*min(uW,uV));',
     '    float rim=line(sdv-44.,.8,fp)*.55+exp(-abs(sdv-44.)/10.)*.14+exp(-max(de,0.)/12.)*.20;',
-    '    col+=lin(TECH_LIGHT)*rim*uTech*techReveal(0.);',
+    '    col+=lin(TECH_LIGHT)*rim*K_RIM*uTech*techReveal(0.);',
     '  }',
 
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
@@ -727,19 +746,20 @@
     '    if(surf==0.){',
     '      vec2 gr=glasses(d,1.,16.+dz*.05,Lm,Fm,Zm,Sm)*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.);',
     // A cor da tela acesa aparece no reflexo.
+    '      gr*=K_REFL;',
     '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
-    '      col=mix(col,lin(TECH_GLASS),g.x*SCREEN_VEIL*.4*uTech);',
-    '      col+=lin(SCREEN_LUM)*g.y*SCREEN_EDGE*.6*uTech;',
+    '      col=mix(col,lin(TECH_GLASS),g.x*SCREEN_VEIL*.4*K_VEIL*uTech);',
+    '      col+=lin(SCREEN_LUM)*g.y*SCREEN_EDGE*.6*K_EDGE*uTech;',
     '    }',
     // Uma face por pixel: a tela da parede, se houver (fica à frente da abóbada); senão a do
     // teto. Assim o desenho da face existe uma vez só no shader.
     '    if(S.y>.01){wallFace(col,d,Z,S,L,F,cq,ce);cs=S;}',
-    '    if(cs.y>.01)screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs);',
+    '    if(cs.y>.01)screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL);',
     // Borda da tela da parede do lado da saída, acesa pela luz.
-    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*S.y*uTech;',
+    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech;',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
@@ -789,10 +809,11 @@
       var high = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
       if (!high || high.precision < 16) return null;
       if (gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) < 128) PANEL_SLOTS = 8;
+      var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
       program = gl.createProgram();
       gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-      gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentSource(geometry)));
+      gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentSource(geometry, coarse)));
       gl.linkProgram(program);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
       gl.useProgram(program);
