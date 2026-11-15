@@ -215,11 +215,14 @@
 
   var SHADER_HEAD = [
     '#define PI 3.14159265',
-    // Paleta (sRGB): pedra clara e quente; frisos.
-    'const vec3 STONE_S=vec3(.905,.874,.836);',
-    'const vec3 VAULT_S=vec3(.872,.862,.852);',
-    'const vec3 FLOOR_S=vec3(.915,.888,.852);',
-    'const vec3 STRIP=vec3(1.,.80,.58);',
+    // Paleta (sRGB), teste "tons azuis" (references/tuneltech.png): superfícies no azul da
+    // marca e luzes azuladas (frisos ciano, luz da saída fria).
+    'const vec3 STONE_S=vec3(.360,.530,.790);',
+    'const vec3 VAULT_S=vec3(.300,.470,.760);',
+    'const vec3 FLOOR_S=vec3(.330,.500,.770);',
+    'const vec3 STRIP=vec3(.55,.80,1.);',
+    'const vec3 COOL=vec3(.78,.90,1.08);',     // tom da luz que entra pela saída
+    'const vec3 HALO=vec3(.86,.93,1.);',       // primeira luz e névoa do vão
     // Exposição e luz: intensidade da janela, luz rebatida pelo piso, luz que circula
     // no túnel, frisos, luz do céu alto (arco) e força do reflexo no piso.
     'const float GAIN=4.6;const float BOUNCE=.6;const float AMB=.075;const float STRIP_K=3.;',
@@ -529,13 +532,13 @@
     '    float r=length(vec2(q.x/ARC_R,(q.y-ARC_CY)/ry));',
     '    float clear=max(uArch*(1.-smoothstep(.45+.75*uArch,1.12+.75*uArch,r)),uCol);',
     '    float a=1.-clear;',
-    '    vec3 haze=mix(vec3(1.),vec3(1.,.955,.91),uLight*(1.-smoothstep(.2,1.,r))*.6);',
+    '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
     '    gl_FragColor=vec4(haze*a,a)*uAlpha;return;',
     '  }',
     // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
     '  if(uMat<.001){',
     '    float h0=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
-    '    gl_FragColor=vec4(mix(vec3(1.),vec3(1.,.955,.91),uLight*h0*.45),1.)*uAlpha;return;',
+    '    gl_FragColor=vec4(mix(vec3(1.),HALO,uLight*h0*.45),1.)*uAlpha;return;',
     '  }',
 
     // Superfície: normal, albedo (linear) e base tangente para o relevo.
@@ -594,7 +597,7 @@
     '  Ld+=cA*max(sA,0.)/(2.*PI);Lsum+=cA*1.5;',
     '  vec3 Lavg=Lsum/5.5;',
     // Balanço de branco da câmera: a luz da paisagem tinge o túnel, sem dominar o tom.
-    '  vec3 wb=mix(vec3(1.),vec3(dot(Lavg,vec3(.2126,.7152,.0722)))/max(Lavg,vec3(1e-3)),.8);',
+    '  vec3 wb=vec3(dot(Lavg,vec3(.2126,.7152,.0722)))/max(Lavg,vec3(1e-3))*COOL;',
     '  Ld*=wb;Lavg*=wb;',
     '  vec3 direct=alb*Ld*GAIN;',
 
@@ -670,7 +673,7 @@
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
     // brilho suave junto ao piso (sem o friso), para não lerem como pilastra solta.
     '  if(surf==3.||surf==5.){',
-    '    col*=mix(vec3(1.),vec3(1.14,1.07,.99),uMat);',
+    '    col*=mix(vec3(1.),vec3(.98,1.04,1.12),uMat);',
     '    col+=lin(STRIP)*exp(-(FLOOR-P.y)/55.)*.34*uStrip*STRIP_K;',
     '  }',
 
@@ -768,7 +771,7 @@
     // Primeira luz: halo quente ao redor do arco, antes de a matéria aparecer.
     '  float halo=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
     // Exposição: tudo começa branco e ganha tom e contraste progressivamente.
-    '  vec3 white=mix(vec3(1.),vec3(1.,.955,.91),uLight*halo*.45);',
+    '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
     '  col=mix(white,col,uMat);',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
     '}'

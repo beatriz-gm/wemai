@@ -144,7 +144,8 @@
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
      Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
   var ARC_NAVY = { fill: '#0B1F33', face: ['#7FA2C4', '#3D6389', '#0B1F33'] };
-  var ARC_STONE = { fill: '#D6C9B7', face: ['#FBF3E8', '#ECE0D0', '#D6C9B7'] };
+  // Teste "tons azuis": o arco assume o azul do túnel (antes, pedra clara: #D6C9B7).
+  var ARC_STONE = { fill: '#5B86C2', face: ['#CFE6FB', '#8FB8E6', '#5B86C2'] };
 
   var view = {};
   var frameId = 0;
