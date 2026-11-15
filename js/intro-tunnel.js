@@ -231,6 +231,10 @@
     // ondulação do reflexo no piso.
     'const float TILE=330.;const float ALB_DETAIL=.35;const float RELIEF=.7;',
     'const float SHEEN=1.4;const float CAVITY=.5;const float MACRO=.10;const float RIPPLE=40.;',
+    // Painéis de vidro (teste): tamanho das placas (largura no piso e no fundo, comprimento
+    // ao longo do túnel), altura da junta horizontal das paredes e desalinhamento entre placas.
+    'const float PANEL_FX=150.;const float PANEL_Z=220.;const float PANEL_MID=575.;',
+    'const float PANEL_TILT=.06;',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -551,24 +555,23 @@
     '  else{N=-normalize(vec3(P.x,P.y-IN_CY,0.));alb=STONE_S;T=vec3(0.,0.,1.);',
     '    uv=vec2(P.z,atan(P.x,-(P.y-IN_CY))*IN_R);}',
     '  alb=lin(alb);',
-    // Material PBR (albedo, relevo, rugosidade, altura) em duas escalas misturadas por
-    // ruído, para não repetir; manchas amplas; só os poros mais fundos escurecem.
-    '  vec3 Nn=N;float rough=.7,cav=1.;',
-    '  if(uTexOk>.5){',
-    '    vec2 tc=uv/TILE;',
-    '    vec2 tc2=mat2(.8,-.6,.6,.8)*uv/(TILE*2.3)+vec2(.37,.11);',
-    '    float w=smoothstep(.35,.65,vnoise(uv/520.));',
-    '    vec3 dm=mix(texture2D(uDat,tc).rgb,texture2D(uDat,tc2).rgb,w);',
-    '    float macro=vnoise(uv/700.)*.6+vnoise(uv/260.)*.4;',
-    '    alb*=(1.+(dm.r-.5)*ALB_DETAIL)*(1.+(macro-.5)*MACRO);',
-    '    vec3 n1=texture2D(uNor,tc).xyz*2.-1.,n2=texture2D(uNor,tc2).xyz*2.-1.;',
-    '    n2.xy=mat2(.8,.6,-.6,.8)*n2.xy;',
-    '    vec3 tn=mix(n1,n2,w);',
+    /* Teste "painéis de vidro": no lugar da textura de microcimento, placas grandes de vidro
+       polido sobre o azul, separadas por frestas finas e escuras. Cada placa tem
+       um desalinhamento mínimo (como num revestimento real), então a luz da saída se reflete
+       um pouco diferente em cada uma. sd: distância às juntas (nas duas direções da placa);
+       fpa: tamanho do pixel nessas direções; pid: qual placa. */
+    '  vec3 Nn=N;float rough=.3,cav=1.;',
+    '  vec2 sd=vec2(1e4),pid=vec2(0.),fpa=vec2(fp);',
+    '  if(surf==0.){vec2 g=vec2(PANEL_FX,PANEL_Z);vec2 q=P.xz-vec2(PANEL_FX*.5,0.);pid=floor(q/g);sd=abs(q-g*floor(q/g+.5));fpa=vec2(fp,fp*t/(FLOOR-EYE));rough=.14;}',
+    '  else if(surf==1.){pid=vec2(floor(P.z/PANEL_Z),P.y<PANEL_MID?0.:1.);',
+    '    sd=vec2(abs(P.z-PANEL_Z*floor(P.z/PANEL_Z+.5)),min(abs(P.y-PANEL_MID),min(abs(P.y-SPRING),FLOOR-P.y)));fpa=vec2(fp*t/uW,fp);rough=.16;}',
+    '  else if(surf==2.){vec2 g=vec2(PANEL_Z,uW*PI/6.);vec2 q=vec2(P.z,uv.y);pid=floor(q/g);sd=abs(q-g*floor(q/g+.5));fpa=vec2(fp*t/uW,fp);rough=.16;}',
+    '  else if(surf==3.){vec2 g=vec2(PANEL_FX,165.);vec2 q=P.xy-vec2(PANEL_FX*.5,SPRING);pid=floor(q/g)+17.;sd=abs(q-g*floor(q/g+.5));rough=.16;}',
+    '  if(surf<=3.){',
+    '    float h1=hash(pid+surf*13.1),h2=hash(pid.yx+surf*7.3+3.);',
     '    vec3 B=cross(N,T);',
-    // Piso polido: menos da metade do relevo das paredes.
-    '    Nn=normalize(N*tn.z+(T*tn.x+B*tn.y)*RELIEF*(surf==0.?.45:1.));',
-    '    rough=mix(.5,.9,clamp((dm.g-.45)/.3,0.,1.));',
-    '    cav=mix(1.,smoothstep(0.,.25,dm.b),CAVITY);',
+    '    Nn=normalize(N+(T*(h1-.5)+B*(h2-.5))*PANEL_TILT);',
+    '    alb*=.92+.16*h1;rough+=(h2-.5)*.10;',
     '  }',
 
     // Luz da paisagem: a abertura dividida em faixas, cada uma com a cor média da foto
@@ -650,13 +653,13 @@
     '    col+=D*Fs*vis*nl*om*(a*a/(a2*a2))*Lavg*GAIN*SHEEN*cav;',
     '  }',
 
-    // Juntas: sulcos rasos (escurecem a luz, não são traços). Sem junta na quina com a
-    // parede do fundo (ela recortaria a lateral do vão).
-    '  float j=0.;',
-    '  if(surf==0.) j=grid(P.x,150.,75.,.9,fp);',
-    '  else if(surf==1.) j=max(grid(P.y,165.,SPRING,.8,fp),grid(P.z,130.,0.,.8,fp*t/uW)*smoothstep(20.,60.,P.z));',
-    '  else if(surf==2.) j=grid(atan(P.x/uW,-(P.y-SPRING)/uV)*uW,uW*.3927,0.,.8,fp)*.5;',
-    '  col*=1.-.10*uJoint*j*step(0.,P.z);',
+    // Juntas dos painéis: só a fresta escura e fina, em todas as superfícies (como no piso,
+    // sem luz). Aparecem com as juntas (uJoint).
+    '  if(surf<=3.){',
+    '    float inZ=surf==3.?1.:smoothstep(20.,60.,P.z);',
+    '    float gro=max(line(sd.x,.6,fpa.x),line(sd.y,.6,fpa.y));',
+    '    col*=1.-.30*gro*uJoint*inZ;',
+    '  }',
 
     // Frisos: fonte linear junto ao piso e à nascente da abóbada, que ilumina o entorno.
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
@@ -876,8 +879,9 @@
       if (img.decode) img.decode().then(upload, uploadOnLoad);
       else img.onload = upload;
     }
-    loadTexture(TEXTURES.data, 1, dataTex);
-    loadTexture(TEXTURES.normal, 2, normalTex);
+    // Teste "painéis de vidro": a textura de microcimento não é usada (nem baixada).
+    // loadTexture(TEXTURES.data, 1, dataTex);
+    // loadTexture(TEXTURES.normal, 2, normalTex);
 
     // A foto, reduzida, vira textura do reflexo (sem mipmaps) e uma miniatura lida no
     // processador, de onde sai a cor de cada faixa de luz da abertura.
