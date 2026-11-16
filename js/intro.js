@@ -119,6 +119,9 @@
     tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
     arcTone: [.26, .5],      // o arco passa do azul da marca ao tom de pedra iluminada do túnel
     arcMerge: [.5, .7],      // e então se funde ao portal: resta só o contorno da abertura
+    // Teste "abertura direta": o arco cresce até a borda da boca do túnel enquanto se funde a
+    // ela (a borda acende no mesmo trecho, ver rimIn em js/intro-tunnel.js). Sem porta.
+    arcGrow: [.42, .68],
     joints: [.24, .6],
     strips: [.32, .66],
     // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
@@ -144,8 +147,11 @@
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
      Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
   var ARC_NAVY = { fill: '#0B1F33', face: ['#7FA2C4', '#3D6389', '#0B1F33'] };
-  // Teste "tons azuis": o arco assume o azul do túnel (antes, pedra clara: #D6C9B7).
-  var ARC_STONE = { fill: '#5B86C2', face: ['#CFE6FB', '#8FB8E6', '#5B86C2'] };
+  // Teste "abertura direta": o arco vira luz ciano, a mesma da borda da boca do túnel, em que
+  // se transforma (antes, azul do túnel: #5B86C2; antes ainda, pedra clara: #D6C9B7).
+  var ARC_STONE = { fill: '#7FD4FF', face: ['#F2FBFF', '#A8E4FF', '#5CC4F5'] };
+  // Centro do arco (= centro da abóbada) e raio médio da faixa do arco, para o crescimento.
+  var ARC_CY = 346.5, ARC_MID_R = (OUTER_R + 252) / 2;
 
   var view = {};
   var frameId = 0;
@@ -324,6 +330,7 @@
     setTips(smooth(p, P.tips));
     setArcTone(smooth(p, P.arcTone));
     arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
+    setArcGrow(smooth(p, P.arcGrow));
 
     // A paisagem se aproxima a partir do mesmo eixo; a água próxima, mais rápido.
     var far = scene.far;
@@ -342,7 +349,15 @@
     else arc.removeAttribute('mask');
   }
 
-  // tone: 0 = azul da marca; 1 = pedra do túnel.
+  /* O arco cresce, a partir do próprio centro, até a faixa coincidir com a borda da boca do
+     túnel (meia-largura da abóbada). Só uma escala no grupo: o path da logo não muda. */
+  function setArcGrow(g) {
+    if (!g) { arc.removeAttribute('transform'); return; }
+    var s = 1 + (view.halfWidth / ARC_MID_R - 1) * g;
+    arc.setAttribute('transform', 'translate(' + ARC_X + ' ' + ARC_CY + ') scale(' + s.toFixed(5) + ') translate(' + (-ARC_X) + ' ' + (-ARC_CY) + ')');
+  }
+
+  // tone: 0 = azul da marca; 1 = luz da borda.
   function setArcTone(tone) {
     arc.style.fill = tone ? mixHex(ARC_NAVY.fill, ARC_STONE.fill, tone) : '';
     for (var i = 0; i < faceStops.length; i++) {
@@ -358,6 +373,7 @@
     face.style.opacity = 1;
     setTips(1);
     setArcTone(1);
+    setArcGrow(0);
     arc.style.opacity = 0;
     landscape.style.transform = landscapeMatrix(1);
     landscapeNear.style.transform = landscapeMatrix(1);

@@ -250,18 +250,18 @@
     'const float RIB_W=5.;const float RIB_HW=.7;',
     'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
     'const float RIB_K=1.5;const float RIB_HALO=.55;const float RIB_SPILL=.30;',
-    // Abertura final direta (teste, frames 08 e 09 da referência): depois que o arco da logo
-    // se funde ao vão, a parede do fundo e a espessura do vão se dissolvem e o túnel termina
-    // na própria boca, sem estrutura de porta. A borda da boca é um fio de luz quase branco
-    // com halo ciano. Força do fio e do brilho que ele espalha sobre a paisagem.
-    'const float RIM_K=2.;const float RIM_OPEN=.5;',
-    // Quanto a abertura direta já tomou o lugar do vão: só depois da fusão do arco (arcMerge).
-    'float openIn(){return smoothstep(.5,.64,uProg)*uStrip;}',
+    // Abertura direta (teste, frames 08 e 09 da referência): não existe porta em momento
+    // algum. O túnel termina na própria boca (paredes e abóbada em z = 0) e tudo o que está
+    // dentro dela é abertura; o arco da logo passa direto para a borda da boca, um fio de luz
+    // quase branco com halo ciano. Força do fio, do halo e do brilho sobre a paisagem.
+    'const float RIM_K=3.4;const float RIM_HALO=1.1;const float RIM_OPEN=.85;',
+    // A borda acende enquanto o arco da logo se funde a ela (arcMerge: p .5 a .7).
+    'float rimIn(){return smoothstep(.42,.66,uProg)*uStrip;}',
     // Distância para dentro da boca do túnel (paredes e abóbada), no plano do fundo.
     'float mouthIn(vec2 q){return q.y>SPRING?uW-abs(q.x):(1.-length(vec2(q.x/uW,(q.y-SPRING)/uV)))*min(uW,uV);}',
     // Brilho da borda da boca sobre a paisagem (sRGB, aditivo), sumindo junto à água.
     'vec3 mouthGlow(vec2 q){float sv=max(mouthIn(q),0.);float fo=uCam/uF;',
-    '  return vec3(.55,.88,1.)*(exp(-sv/(5.+fo))*.5+exp(-sv/45.)*.10)*RIM_OPEN*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
+    '  return vec3(.55,.88,1.)*(exp(-sv/(5.+fo))*.6+exp(-sv/45.)*.12)*RIM_OPEN*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -545,13 +545,8 @@
     '  }else if(tT<=uCam){',
     '    t=tT;surf=kind;',
     '  }else{',
-    '    vec2 q=vec2(uCam*d.x,EYE+uCam*d.y);',
-    '    if(portalSd(q)>0.){t=uCam;surf=3.;}',
-    '    else{',
-    '      float pk;float tP=exitProfile(d,JAMB_X,JAMB_Y,IN_R,IN_R,IN_CY,pk);',
-    '      if(tP<uCam+REVEAL){t=tP;surf=pk==0.?0.:pk+4.;}',
-    '      else{t=uCam+REVEAL;surf=7.;}',
-    '    }',
+    // Além do fim das paredes: abertura direta (sem parede do fundo nem porta).
+    '    t=uCam+REVEAL;surf=7.;',
     '  }',
     '  vec3 P=vec3(t*d.x,EYE+t*d.y,uCam-t);',
     '  float fp=t/uF;',                    // tamanho do pixel na superfície (unidades)
@@ -565,7 +560,7 @@
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
     // Brilho da borda da boca do túnel espalhado sobre a paisagem.
-    '    float gq=openIn();vec3 gw=gq>.001?mouthGlow(q)*gq:vec3(0.);',
+    '    float gq=rimIn();vec3 gw=gq>.001?mouthGlow(q)*gq:vec3(0.);',
     '    gl_FragColor=vec4(haze*a+gw,a)*uAlpha;return;',
     '  }',
     // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
@@ -727,10 +722,10 @@
     /* Abertura final direta (teste): o fim das paredes e da abóbada (z = 0) é a borda da
        boca do túnel, acesa como um fio de luz quase branco com halo ciano, que também ilumina
        a superfície junto a ela. Mais fraca descendo para o piso. */
-    '  float gq=openIn();',
+    '  float gq=rimIn();',
     '  if(gq>.001&&(surf==1.||surf==2.)&&P.z<120.){',
     '    float fzm=fp*t/uW;float fl=1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,P.y);',
-    '    col+=(lin(RIB_CORE)*line(P.z,.9,fzm)*RIM_K+lin(RIB_C)*(exp(-max(P.z,0.)/(5.+fzm))*.7+exp(-max(P.z,0.)/50.)*.14))*fl*gq;',
+    '    col+=(lin(RIB_CORE)*line(P.z,.9,fzm)*RIM_K+lin(RIB_C)*(exp(-max(P.z,0.)/(5.+fzm))*RIM_HALO+exp(-max(P.z,0.)/50.)*.2))*fl*gq;',
     '  }',
 
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
@@ -743,7 +738,7 @@
     '    float fr=(.04+.96*pow(1.-c,5.))*mix(1.2,.7,clamp((rough-.5)/.4,0.,1.));',
     '    float yr=2.*FLOOR-(EYE+uCam*d.y);vec2 qr=vec2(uCam*d.x,yr);',
     '    float blur=8.+dz*.08;',
-    '    float m=1.-smoothstep(-blur,blur,mix(portalSd(qr),max(-mouthIn(qr),qr.y-FLOOR),openIn()));',
+    '    float m=1.-smoothstep(-blur,blur,max(-mouthIn(qr),qr.y-FLOOR));',
     // Reflexo alongado na vertical (como na água e na pedra polida): 5 amostras. O relevo
     // do piso o ondula levemente (pedra polida, não espelho).
     '    vec2 sr=toScreen(qr)+vec2(Nn.x,Nn.z)*RIPPLE;float sy=4.+dz*.035;',
@@ -752,7 +747,7 @@
     '    col=mix(col,mix(col,rc,m),fr*.85*uCol);',   // fora do vão: o próprio túnel refletido
     '    frT=fr;',
     // Junto ao vão, o piso se dissolve na água (sem linha fechando a base do arco).
-    '    float xe=mix(JAMB_X,uW+20.,openIn());',
+    '    float xe=uW+20.;',
     '    if(abs(P.x)<xe+20.){',
     '      float edge=smoothstep(-REVEAL,70.,P.z);',
     '      alpha=1.-(1.-edge)*uCol*(1.-smoothstep(xe-30.,xe+20.,abs(P.x)));',
@@ -817,10 +812,6 @@
     // Exposição: tudo começa branco e ganha tom e contraste progressivamente.
     '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
     '  col=mix(white,col,uMat);',
-    '  if(gq>.001&&(surf==3.||surf==5.||surf==6.)){',
-    '    float ka=1.-gq;vec2 q=vec2(uCam*d.x,EYE+uCam*d.y);',
-    '    gl_FragColor=vec4(col*alpha*ka+mouthGlow(q)*gq,alpha*ka)*uAlpha;return;',
-    '  }',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
     '}'
   ].join('\n');
