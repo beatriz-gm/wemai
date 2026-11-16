@@ -189,7 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -257,6 +257,13 @@
     'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
     // Mesma intensidade das linhas de luz do piso (fora do pulso: BEAM_K·BEAM_BASE).
     'const float RIB_K=.8;const float RIB_HALO=.18;const float RIB_SPILL=.12;',
+    // Teste "luz embutida" (só no celular, uGlow): a luz das linhas fica num canal da
+    // estrutura (fenda escura dos dois lados), com núcleo mais fino, halo curto e uma cauda
+    // larga muito fraca (bloom leve e seletivo); mais forte nos encontros com as paredes, mais
+    // fraca e fina ao longe (profundidade) e contida perto da câmera. A luz que ela lança na
+    // superfície fica mais concentrada junto a ela.
+    'const float LG_HW=.45;const float LG_HALO=.14;const float LG_TAIL=.025;const float LG_SLOT=.28;',
+    'const float LG_JOIN=.7;const float LG_FAR=.5;const float LG_SPILL=.15;',
     // Abertura direta (teste, frames 08 e 09 da referência): não existe porta em momento
     // algum. O túnel termina na própria boca (paredes e abóbada em z = 0) e tudo o que está
     // dentro dela é abertura; o arco da logo passa direto para a borda da boca, um fio de luz
@@ -778,10 +785,17 @@
        saída e reforçam a profundidade. Mais fracas perto da câmera, onde a perspectiva as
        engrossa. Acendem com uStrip. No teto não há linhas no comprimento (só os arcos). */
     '  float bm=0.;',
-    '  if(surf==0.){float da=uW-BEAM_EDGE-abs(P.x);bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
+    '  float bslot=0.;',
+    '  if(surf==0.){float da=uW-BEAM_EDGE-abs(P.x);',
+    '    if(uGlow>.5){bm=line(da,.8,fp)+exp(-abs(da)/(4.+fp*1.1))*.16+exp(-abs(da)/(30.+fp*2.))*.03;bslot=line(abs(da)-2.6,.5,fp);}',
+    '    else bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
+    // Luz embutida: a base da parede ao lado recebe um pouco da luz da linha do piso.
+    '  if(surf==1.&&uGlow>.5)bm=exp(-(FLOOR-P.y)/16.)*.10+exp(-(FLOOR-P.y)/70.)*.025;',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
     '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
-    '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*(.45+.55*smoothstep(150.,900.,t))*(BEAM_BASE+PULSE_K*pulse);',
+    '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
+    '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
+    '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(BEAM_BASE+PULSE_K*pulse);',
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
     // brilho suave junto ao piso (sem o friso), para não lerem como pilastra solta.
     '  if(surf==3.||surf==5.){',
@@ -850,12 +864,12 @@
        em direção à câmera (como a tecnologia, uBuild) e acendem com os frisos (uStrip). Entram
        antes das telas, que ficam à frente delas. */
     '  if(uStrip>.001){',
-    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.;float fr0=uBuild*(LEN+320.);',
+    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.,rs=0.;float fr0=uBuild*(LEN+320.);',
     '    for(int k=0;k<RIB_N;k++){',
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
     '      float on=1.-smoothstep(fr0-260.,fr0,zr);',
     // Luz lançada na abóbada junto à linha (cai com a distância ao plano dela).
-    '      if(surf==2.&&P.z>0.)rh+=exp(-abs(P.z-zr)/38.)*RIB_SPILL*on;',
+    '      if(surf==2.&&P.z>0.)rh+=mix(exp(-abs(P.z-zr)/38.)*RIB_SPILL,exp(-abs(P.z-zr)/16.)*LG_SPILL+exp(-abs(P.z-zr)/70.)*.03,uGlow)*on;',
     '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=on;',
     '      if(tl>=t)continue;',
     '      float x=tl*d.x;float fl=tl/uF;',
@@ -863,9 +877,18 @@
     // Só os arcos, na parte de cima: a linha termina onde a abóbada nasce (sem descer as paredes).
     '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y));',
     '      float dl=abs(sr-RIB_W);',
+    '      if(uGlow>.5){',
+    '        float jn=1.+LG_JOIN*smoothstep(SPRING-170.,SPRING-40.,y);',
+    '        float dp=mix(1.,LG_FAR,smoothstep(500.,2200.,tl))*(.7+.3*smoothstep(120.,520.,tl));',
+    '        rs=max(rs,line(dl-1.9,.5,fl)*wk*step(tl,t));',
+    '        rc+=line(dl,LG_HW,fl)*wk*jn*dp;',
+    '        rh+=(exp(-dl/(3.5+fl*1.2))*LG_HALO+exp(-dl/(26.+fl*3.))*LG_TAIL)*wk*jn*dp;',
+    '      }else{',
     '      rc+=line(dl,RIB_HW,fl)*wk;',
     '      rh+=exp(-dl/(10.+fl*2.))*RIB_HALO*wk;',
+    '      }',
     '    }',
+    '    col*=1.-rs*LG_SLOT*uStrip;',
     '    col+=lin(BEAM)*(rc*RIB_K+rh)*uStrip;',
     '  }',
 
@@ -967,7 +990,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1142,6 +1165,7 @@
       gl.uniform1f(u.uRimW, s.rimWide || 0);
       gl.uniform1f(u.uMetal, s.metal || 0);
       gl.uniform1f(u.uPanel, s.panel || 0);
+      gl.uniform1f(u.uGlow, s.glow || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
