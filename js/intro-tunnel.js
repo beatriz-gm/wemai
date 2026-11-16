@@ -194,7 +194,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -379,6 +379,9 @@
     // seguem lâminas de vidro, sem conteúdo, com um fio de luz fino acompanhando a curvatura.
     'const float CE_SPLIT=.55;const float CE_SEAM=.42;const float CE_BEVEL=.30;const float CE_TONE=.06;',
     'const float CE_FROST=.45;const float CE_LINE=.55;',
+    // Espaçamento das juntas longitudinais do teto contínuo (no arco da abóbada): a linha de
+    // luz dos ombros (θ = .95) cai exatamente numa delas.
+    'const float VAULT_SEAM=135.375;',
     'float ceilStruct(vec4 st){return uCeil>.5&&fract(st.w)<CE_SPLIT?1.:0.;}',
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
@@ -724,7 +727,9 @@
     '    met=uMetal;vec3 B=cross(N,T);float fd=1./(1.+t/1600.);',
     '    float m1=vnoise(uv/260.+3.1),m2=vnoise(uv/70.+7.3),br=vnoise(vec2(uv.x/520.,uv.y/3.2));',
     '    rough=mix(rough,MET_ROUGH+MET_VAR*(m1-.5)+(.6*MET_VAR*(m2-.5)+MET_BRUSH*(br-.5))*fd,met);',
-    '    vec2 hu=uv/vec2(700.,380.);float h0=vnoise(hu),hx=vnoise(hu+vec2(.03,0.)),hy=vnoise(hu+vec2(0.,.03));',
+    // Teto contínuo: na abóbada a ondulação se alonga no sentido do túnel, para o reflexo da
+    // saída correr em faixas longitudinais, e não em anéis (que liam como arcos sucessivos).
+    '    vec2 hu=uv/vec2(uVault>.5&&surf==2.?4200.:700.,380.);float h0=vnoise(hu),hx=vnoise(hu+vec2(.03,0.)),hy=vnoise(hu+vec2(0.,.03));',
     '    Nn=normalize(N-(T*(hx-h0)+B*(hy-h0))*MET_BEND*met);',
     '    alb*=1.+(.08*(m1-.5)+.10*(br-.5)*fd)*met;',
     '  }',
@@ -880,6 +885,17 @@
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
     '  vec4 cq=vec4(0.),ce=vec4(0.),cs=vec4(0.);',
+    /* Teto contínuo (celular, uVault): as telas do teto saem e a abóbada vira uma superfície
+       única, dividida só por juntas longitudinais finas (no sentido do túnel, da câmera até a
+       saída), no mesmo acabamento das divisões estruturais: junta escura e bisel que pega luz.
+       As linhas de luz dos ombros correm dentro de uma dessas juntas. Somem ao longe. */
+    '  if(uVault>.5&&surf==2.){',
+    '    float sa=atan(P.x/uW,-(P.y-SPRING)/uV)*285.;float sq=sa/VAULT_SEAM;',
+    '    float dsm=abs(fract(sq+.5)-.5)*VAULT_SEAM;float sg=fract(sq+.5)<.5?-1.:1.;',
+    '    float lo=(1.-smoothstep(3.,9.,fp))*smoothstep(0.,60.,P.z);',
+    '    col*=1.-line(dsm,.55,fp)*CE_SEAM*lo;',
+    '    col+=col*line(dsm-1.5,.45,fp)*step(0.,sg*sa)*CE_BEVEL*2.*lo;',
+    '  }else',
     '  if(uTech>.001&&surf==2.&&P.z>0.)ceilingPanels(col,P,vec3(d,-1.),t,cq,ce,cs);',
     // Luz discreta nas bordas: contorna o vão e o encontro da abóbada com a parede do fundo.
     '  if(uTech>.001&&surf==3.){',
@@ -928,7 +944,7 @@
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
     // Estrutura contínua: só as camadas junto à saída ficam (a última mais forte), emoldurando
     // o destino; no corpo do túnel não há arcos repetidos.
-    '      float sm=uStruct>.5?1.-smoothstep(250.,650.,zr):1.;if(sm<.001)continue;',
+    '      float sm=uStruct>.5?1.-smoothstep(uVault>.5?200.:250.,uVault>.5?420.:650.,zr):1.;if(sm<.001)continue;',
     '      float on=(1.-smoothstep(fr0-260.,fr0,zr))*sm;',
     // Luz lançada na abóbada junto à linha (cai com a distância ao plano dela).
     '      if(surf==2.&&P.z>0.)rh+=mix(exp(-abs(P.z-zr)/38.)*RIB_SPILL,exp(-abs(P.z-zr)/16.)*LG_SPILL+exp(-abs(P.z-zr)/70.)*.03,uGlow)*on;',
@@ -1071,7 +1087,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1252,6 +1268,7 @@
       gl.uniform1f(u.uForm, s.form || 0);
       gl.uniform1f(u.uLineE, s.lineEarly || 0);
       gl.uniform1f(u.uStruct, s.struct || 0);
+      gl.uniform1f(u.uVault, s.vault || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
