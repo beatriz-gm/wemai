@@ -324,6 +324,7 @@
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
         panel: COARSE ? 1 : 0,   // teste "lâminas de vidro" nos painéis: só no celular
         glow: COARSE ? 1 : 0,    // teste "luz embutida" nas linhas e feixes: só no celular
+        ceil: COARSE ? 1 : 0,    // teste "teto estrutural": só no celular
         p: p,
         alpha: 1 - smooth(p, P.fade)
       }

@@ -189,7 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -364,6 +364,13 @@
     'const float PG_SMOKE=.78;const vec3 PG_TINT=vec3(.70,.80,.94);const float PG_FROST=.17;',
     'const vec3 PG_SHEEN=vec3(.80,.90,1.);const float PG_FRES=.5;const float PG_EDGE=1.1;',
     'const float PG_SHADOW=.30;const float PG_INK=.3;',
+    // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
+    // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
+    // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
+    // seguem lâminas de vidro, sem conteúdo, com um fio de luz fino acompanhando a curvatura.
+    'const float CE_SPLIT=.55;const float CE_SEAM=.42;const float CE_BEVEL=.30;const float CE_TONE=.06;',
+    'const float CE_FROST=.45;const float CE_LINE=.55;',
+    'float ceilStruct(vec4 st){return uCeil>.5&&fract(st.w)<CE_SPLIT?1.:0.;}',
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
     // Plano de vidro em x = s·(uW − g), com g o afastamento da parede neste instante.
@@ -470,7 +477,7 @@
     // sz: tamanho; e: distância às bordas nos dois eixos; f: tamanho do pixel nos dois eixos;
     // S: estado (ver panelUniforms).
     // xd: direção da saída no plano da tela (q); fres: cosseno entre o olhar e a normal da tela.
-    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf,vec2 xd,float cv){',
+    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf,vec2 xd,float cv,float kc){',
     '  float vis=S.y*uTech*kf;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
     '  float fm=max(f.x,f.y);',
@@ -484,9 +491,23 @@
     // fica como estrutura discreta, sem barra de título, pontos ou varredura.
     '  if(uPanel>.5){',
     '    vec2 uc=uv-.5;float tw=clamp(dot(uc,xd)+.5,0.,1.);',
+    // Teto estrutural: placa da abóbada separada por uma junta fina; o lado voltado para a
+    // saída pega luz no bisel, o outro fica na sombra da junta. Some ao longe (sem cintilar).
+    '    float ed0=min(e.x,e.y);',
+    '    vec2 en0=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
+    '    if(kc>.5&&ceilStruct(S)>.5){',
+    '      float lo=(1.-smoothstep(3.,9.,fm))*S.y*uTech;',
+    '      float fs=dot(en0,xd);',
+    '      c*=1.+CE_TONE*(hash(vec2(sd*41.,3.))-.5)*2.*ins*lo;',
+    '      c*=1.-line(ed0,.55,fm)*CE_SEAM*(.75+.25*max(-fs,0.))*lo;',
+    '      c+=c*line(ed0-1.5,.45,fm)*max(fs,0.)*CE_BEVEL*2.5*lo;',
+    '      c*=1.-(1.-smoothstep(0.,6.+fm,ed0))*ins*max(-fs,0.)*.10*lo;',
+    '      return;',
+    '    }',
     '    float fr=pow(1.-clamp(cv,0.,1.),5.);',
     '    float lb=dot(c,vec3(.2126,.7152,.0722));',
-    '    vec3 body=mix(c,vec3(lb)*lin(PG_TINT)*1.25,.3)*PG_SMOKE+lin(PG_TINT)*PG_FROST*(.5+tw);',
+    '    float ceK=kc>.5&&uCeil>.5?CE_FROST:1.;',
+    '    vec3 body=mix(c,vec3(lb)*lin(PG_TINT)*1.25,.3*ceK)*mix(1.,PG_SMOKE,ceK)+lin(PG_TINT)*PG_FROST*ceK*(.5+tw);',
     '    body+=lin(PG_SHEEN)*(PG_FRES*fr*(.35+.65*tw)+.035*(1.-smoothstep(0.,.3,abs(uc.x*.6+uc.y-.15))));',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
@@ -499,6 +520,11 @@
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis;',
     '    vec2 q=q0-vec2(10.,12.);vec2 bb=sz-vec2(20.,22.);',
     '    float lod=1.-smoothstep(2.5,7.,fm);',
+    // Teto: sem conteúdo; um fio de luz fino acompanha a curvatura junto à borda da saída.
+    '    if(kc>.5&&uCeil>.5){',
+    '      c+=lum*line(q0.y-(sz.y-6.),.45,f.y)*smoothstep(4.,10.,q0.x)*smoothstep(4.,10.,sz.x-q0.x)*CE_LINE*vis;',
+    '      lod=0.;',
+    '    }',
     '    if(lod>0.&&q.x>0.&&q.y>0.&&q.x<bb.x&&q.y<bb.y){',
     '      float ct=hud(q,bb,kd,sd,f.x,f.y)*step(q.x,S.y*bb.x*1.05);',
     '      c+=lum*min(ct,1.)*SCREEN_INK*PG_INK*K_INK*lod*vis*(.6+.4*tw);',
@@ -558,13 +584,14 @@
     '  for(int i=0;i<SLOTS;i++){',
     '    vec4 b=uCB[i],st=uCS[i];',
     '    if(st.y<.01)continue;',
+    '    float stc=ceilStruct(st);',
     '    vec2 c=vec2(b.x+b.y,b.z+b.w)*.5,h=vec2(b.y-b.x,b.w-b.z)*.5;',
-    '    gl=max(gl,exp(-length(max(abs(vec2(arc,P.z)-c)-h,0.))/(14.+st.x*.6))*st.y);',
-    '    if(st.z>.5){',
+    '    gl=max(gl,exp(-length(max(abs(vec2(arc,P.z)-c)-h,0.))/(14.+st.x*.6))*st.y*(1.-stc)*(1.-.5*uCeil));',
+    '    if(st.z>.5&&stc<.5){',
     '      vec2 e=abs(vec2(arc,P.z*(1.-st.x/300.))-c)-h;float pen=3.+st.x*.5;',
     '      sh=max(sh,(1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y);',
     '    }',
-    '    float dt=st.x/kn;vec3 D=-R*dt;float a=arc+dot(D,Ta);float z=P.z+D.z;',
+    '    float dt=st.x/kn*(1.-stc);vec3 D=-R*dt;float a=arc+dot(D,Ta);float z=P.z+D.z;',
     '    if(a<b.x-6.||a>b.y+6.||z<b.z-6.||z>b.w+6.)continue;',
     '    float sc=a>b.x&&a<b.y&&z>b.z&&z<b.w?t-dt:t-dt+1e5;',
     '    if(sc<best){best=sc;Z=b;S=st;hit=vec2(a,z);}',
@@ -914,7 +941,7 @@
     '    if(cs.y>.01){',
     '      vec2 xd=S.y>.01?vec2(d.x>0.?-1.:1.,0.):vec2(0.,1.);',
     '      float cv=S.y>.01?abs(d.x)/length(vec3(d,1.)):ce.z/max(ce.w,1e-4);',
-    '      screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL,xd,cv);',
+    '      screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL,xd,cv,S.y>.01?0.:1.);',
     '    }',
     // Borda da tela da parede do lado da saída, acesa pela luz.
     '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech*(1.-.6*uPanel);',
@@ -990,7 +1017,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1166,6 +1193,7 @@
       gl.uniform1f(u.uMetal, s.metal || 0);
       gl.uniform1f(u.uPanel, s.panel || 0);
       gl.uniform1f(u.uGlow, s.glow || 0);
+      gl.uniform1f(u.uCeil, s.ceil || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
