@@ -242,11 +242,15 @@
     // abertura, em relação ao progresso da câmera) e força. O feixe fixo fica em BEAM_BASE da
     // força; o pulso mantém a sua.
     'const float PULSE_GAP=900.;const float PULSE_SPEED=6.;const float PULSE_K=1.6;',
-    // Arcos-camada (teste): três contornos com a forma do vão, distribuídos ao longo do túnel
-    // com a mesma distância entre si (primeiro plano, a partir da parede do fundo, e passo),
-    // dentro do trecho que a câmera percorre com o túnel visível: ela atravessa os dois mais
-    // distantes do fundo; o mais próximo fica à frente até a chegada. Folga, cor e força.
-    'const float LAYER_Z=450.;const float LAYER_STEP=450.;const float LAYER_OFF=26.;const vec3 LAYER_C=vec3(.86,.95,1.);const float LAYER_K=1.;',
+    // Estrutura tecnológica (teste, references/Storyboard WEMAI_ Da Ideia ao Horizonte.png):
+    // nervuras de vidro com o perfil do túnel (paredes + abóbada), em planos igualmente
+    // espaçados. Primeiro plano (a partir da parede do fundo), passo, quantas o shader
+    // percorre, largura da moldura (para dentro do perfil), cor da luz, cor do vidro, força
+    // da luz e do vidro. Ficam fora do cone de visão do vão: nunca cobrem a paisagem.
+    'const float RIB_Z0=160.;const float RIB_S=210.;',
+    '#define RIB_N 11',
+    'const float RIB_W=14.;const vec3 RIB_C=vec3(.78,.92,1.);const vec3 RIB_GLASS=vec3(.86,.94,1.);',
+    'const float RIB_K=1.6;const float RIB_FILL=.22;',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -764,6 +768,29 @@
     '    }',
     '  }',
 
+    /* Nervuras de vidro (teste): molduras finas com o perfil do túnel, em planos ao longo
+       dele, que a câmera atravessa. Cada uma: vidro translúcido, borda interna de luz, traço
+       junto à superfície e brilho suave; refletida no piso polido. Nascem do vão em direção à
+       câmera (como a tecnologia, uBuild) e acendem com os frisos (uStrip). Entram antes das
+       telas, que ficam à frente delas. */
+    '  if(uStrip>.001){',
+    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rf=0.,rl=0.;float fr0=uBuild*(LEN+320.);',
+    '    for(int k=0;k<RIB_N;k++){',
+    '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
+    '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=1.;',
+    '      if(tl>=t){if(surf!=0.)continue;y=2.*FLOOR-y;wk=frT*.9*exp(-max(t-500.,0.)/900.);}',
+    '      float x=tl*d.x;float fl=tl/uF;',
+    '      float sr=y>SPRING?uW-abs(x):(1.-length(vec2(x/uW,(y-SPRING)/uV)))*min(uW,uV);',
+    '      wk*=(1.-smoothstep(fr0-260.,fr0,zr))*smoothstep(30.,240.,tl)*(1.-smoothstep(FLOOR-4.,FLOOR,y));',
+    '      rf=max(rf,smoothstep(-fl,fl,sr)*(1.-smoothstep(RIB_W-fl,RIB_W+fl,sr))*wk);',
+    '      rl+=(line(sr-RIB_W,.9,fl)+line(sr-1.5,.6,fl)*.45+exp(-abs(sr-RIB_W)/(10.+fl*2.))*.24)*wk;',
+    // Pé da nervura: uma poça de luz no piso, junto à parede.
+    '      if(surf==0.)rl+=exp(-length(vec2(P.z-zr,uW-abs(P.x)))/26.)*.5*(1.-smoothstep(fr0-260.,fr0,zr));',
+    '    }',
+    '    col=mix(col,lin(RIB_GLASS),rf*RIB_FILL*uStrip);',
+    '    col+=lin(RIB_C)*rl*RIB_K*uStrip;',
+    '  }',
+
     // Telas à frente da superfície; no piso, o reflexo delicado delas.
     '  if(uTech>.001){',
     '    vec4 L,Z,S,Lm,Zm,Sm;vec2 F,Fm;',
@@ -789,18 +816,6 @@
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
-    /* Arcos-camada (teste): três contornos de luz bem sutis com a mesma forma do vão (arco e
-       laterais até o piso), em planos distribuídos ao longo do túnel, igualmente espaçados e um
-       pouco maiores que o vão, como camadas antes da abertura. Cada um só onde o seu plano fica
-       à frente do que o raio atinge. */
-    '  for(int k=0;k<3;k++){',
-    '    float tl=uCam-LAYER_Z-float(k)*LAYER_STEP;',
-    '    if(tl<=0.||tl>=t)continue;',
-    '    vec2 ql=vec2(tl*d.x,EYE+tl*d.y);float fl=tl/uF;',
-    '    float ls=(ql.y<JAMB_Y?length(vec2(ql.x,ql.y-IN_CY))-IN_R:abs(ql.x)-JAMB_X)-LAYER_OFF;',
-    '    float lm=1.-smoothstep(FLOOR-6.,FLOOR,ql.y);',
-    '    col+=lin(LAYER_C)*(line(ls,1.,fl)+exp(-abs(ls)/(8.+fl*2.))*.14)*lm*LAYER_K*smoothstep(.3,.9,uMat);',
-    '  }',
     '  col=enc(neutral(col));',
     '  col+=(hash(gl_FragCoord.xy)-.5)*.02;',
     // Primeira luz: halo quente ao redor do arco, antes de a matéria aparecer.
