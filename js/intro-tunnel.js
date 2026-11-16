@@ -194,7 +194,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -845,6 +845,10 @@
     '    else bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
     // Luz embutida: a base da parede ao lado recebe um pouco da luz da linha do piso.
     '  if(surf==1.&&uGlow>.5)bm=exp(-(FLOOR-P.y)/16.)*.10+exp(-(FLOOR-P.y)/70.)*.025;',
+    /* Estrutura contínua (celular, uStruct): no lugar dos arcos repetidos ao longo do corpo, a
+       luz corre no sentido do túnel, embutida nos ombros da abóbada (uma de cada lado), como as linhas do piso: quatro guias contínuas que convergem para a saída. */
+    '  if(uStruct>.5&&surf==2.){float ds=abs(abs(atan(P.x/uW,-(P.y-SPRING)/uV))-.95)*285.;',
+    '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
     '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
@@ -922,7 +926,10 @@
     '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.,rs=0.,lnE=0.;float fr0=uBuild*(LEN+320.);',
     '    for(int k=0;k<RIB_N;k++){',
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
-    '      float on=1.-smoothstep(fr0-260.,fr0,zr);',
+    // Estrutura contínua: só as camadas junto à saída ficam (a última mais forte), emoldurando
+    // o destino; no corpo do túnel não há arcos repetidos.
+    '      float sm=uStruct>.5?1.-smoothstep(250.,650.,zr):1.;if(sm<.001)continue;',
+    '      float on=(1.-smoothstep(fr0-260.,fr0,zr))*sm;',
     // Luz lançada na abóbada junto à linha (cai com a distância ao plano dela).
     '      if(surf==2.&&P.z>0.)rh+=mix(exp(-abs(P.z-zr)/38.)*RIB_SPILL,exp(-abs(P.z-zr)/16.)*LG_SPILL+exp(-abs(P.z-zr)/70.)*.03,uGlow)*on;',
     '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=on;',
@@ -932,7 +939,7 @@
     // Só os arcos, na parte de cima: a linha termina onde a abóbada nasce (sem descer as paredes).
     '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y));',
     '      float dl=abs(sr-RIB_W);',
-    '      if(uForm>.5)lnE+=(line(dl,.6,fl)+exp(-dl/(4.+fl))*.25)*smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y))*(1.-smoothstep(fE-400.,fE,zr));',
+    '      if(uForm>.5)lnE+=(line(dl,.6,fl)+exp(-dl/(4.+fl))*.25)*smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y))*(1.-smoothstep(fE-400.,fE,zr))*sm;',
     '      if(uGlow>.5){',
     '        float jn=1.+LG_JOIN*smoothstep(SPRING-170.,SPRING-40.,y);',
     '        float dp=mix(1.,LG_FAR,smoothstep(500.,2200.,tl))*(.7+.3*smoothstep(120.,520.,tl));',
@@ -1064,7 +1071,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1244,6 +1251,7 @@
       gl.uniform1f(u.uRimX, s.rimExit || 0);
       gl.uniform1f(u.uForm, s.form || 0);
       gl.uniform1f(u.uLineE, s.lineEarly || 0);
+      gl.uniform1f(u.uStruct, s.struct || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);

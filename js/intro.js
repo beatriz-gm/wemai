@@ -345,6 +345,7 @@
         rimDown: smooth(p, P.rimDown),
         rimExit: ENTRY ? smooth(p, P_RIM_EXIT) : 0,
         form: COARSE ? 1 : 0,                         // formação gradual: só no celular
+        struct: COARSE ? 1 : 0,                       // estrutura contínua: só no celular
         lineEarly: COARSE ? smooth(p, [.06, .26]) : 0,  // linhas de perspectiva antes das superfícies
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
         panel: COARSE ? 1 : 0,   // teste "lâminas de vidro" nos painéis: só no celular
