@@ -249,12 +249,14 @@
     '#define RIB_N 11',
     'const float RIB_W=5.;const float RIB_HW=.7;',
     'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
-    'const float RIB_K=1.5;const float RIB_HALO=.55;const float RIB_SPILL=.30;',
+    // Mesma intensidade das linhas de luz do piso (fora do pulso: BEAM_K·BEAM_BASE).
+    'const float RIB_K=.8;const float RIB_HALO=.18;const float RIB_SPILL=.12;',
     // Abertura direta (teste, frames 08 e 09 da referência): não existe porta em momento
     // algum. O túnel termina na própria boca (paredes e abóbada em z = 0) e tudo o que está
     // dentro dela é abertura; o arco da logo passa direto para a borda da boca, um fio de luz
     // quase branco com halo ciano. Força do fio, do halo e do brilho sobre a paisagem.
-    'const float RIM_K=3.4;const float RIM_HALO=1.1;const float RIM_OPEN=.85;',
+    // Próxima da intensidade das linhas de luz do piso.
+    'const float RIM_K=1.8;const float RIM_HALO=.45;const float RIM_OPEN=.4;',
     // A borda acende sob o arco (uRim) e desce pelas laterais até o piso (uRimDown).
     'float rimAt(float y){float yl=SPRING-20.+(FLOOR+60.-SPRING)*uRimDown;return uRim*(1.-smoothstep(yl-70.,yl,y));}',
     // Luz ciano da borda e do arco, para misturar em sRGB (lê como luz também sobre o branco).
@@ -537,7 +539,7 @@
     '}',
     // Aplica borda e halo do arco sobre uma cor sRGB.
     // O fio puxa para um ciano saturado (lê como luz sobre o branco) e soma brilho (sobre o escuro).
-    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.50,.86,1.),k*.75)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
+    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.50,.86,1.),k*.6)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
@@ -781,9 +783,9 @@
     '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y));',
     '      float dl=abs(sr-RIB_W);',
     '      rc+=line(dl,RIB_HW,fl)*wk;',
-    '      rh+=(exp(-dl/(3.+fl))*RIB_HALO+exp(-dl/(26.+fl*3.))*.07)*wk;',
+    '      rh+=exp(-dl/(10.+fl*2.))*RIB_HALO*wk;',
     '    }',
-    '    col+=(lin(RIB_CORE)*rc*RIB_K+lin(RIB_C)*rh)*uStrip;',
+    '    col+=lin(BEAM)*(rc*RIB_K+rh)*uStrip;',
     '  }',
 
     // Telas à frente da superfície; no piso, o reflexo delicado delas.
