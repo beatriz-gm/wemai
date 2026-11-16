@@ -189,7 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -350,6 +350,13 @@
     'const vec3 SCREEN_LUM=vec3(.86,.93,1.);',
     'const float GLASS_LINK=70.;',       // a linha de conexão vai além do vidro
     'const float PANEL_T=5.;',          // espessura das telas soltas
+    // Teste "lâminas de vidro" (só no celular, uPanel): vidro fosco levemente fumê. Quanto o
+    // vidro escurece o que está atrás, tom frio do fosco e quanto ele clareia (mais do lado da
+    // saída), reflexo frio de Fresnel (mais forte quando visto de lado), bisel polido da borda,
+    // sombra de contato da espessura e quanto sobra do conteúdo (estrutura, não interface).
+    'const float PG_SMOKE=.78;const vec3 PG_TINT=vec3(.70,.80,.94);const float PG_FROST=.17;',
+    'const vec3 PG_SHEEN=vec3(.80,.90,1.);const float PG_FRES=.5;const float PG_EDGE=1.1;',
+    'const float PG_SHADOW=.30;const float PG_INK=.3;',
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
     // Plano de vidro em x = s·(uW − g), com g o afastamento da parede neste instante.
@@ -455,13 +462,42 @@
     // varredura. q: posição a partir do canto de cima à esquerda (como vista na imagem);
     // sz: tamanho; e: distância às bordas nos dois eixos; f: tamanho do pixel nos dois eixos;
     // S: estado (ver panelUniforms).
-    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf){',
+    // xd: direção da saída no plano da tela (q); fres: cosseno entre o olhar e a normal da tela.
+    'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf,vec2 xd,float cv){',
     '  float vis=S.y*uTech*kf;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
     '  float fm=max(f.x,f.y);',
     '  float ins=smoothstep(-f.x,f.x,e.x)*smoothstep(-f.y,f.y,e.y);',
     '  vec2 uv=clamp(q0/sz,0.,1.);',
     '  vec3 lum=mix(lin(dk>.5?mix(SCREEN_LUM,TECH_SKY,.35):SCREEN_LUM),lin(TECH_LIGHT),K_WARM);',
+    // Lâmina de vidro: o que está atrás aparece um pouco mais escuro e difuso (fumê fosco), o
+    // vidro clareia do lado que recebe a luz da saída e reflete o frio do entorno quando visto
+    // de lado (Fresnel). A borda é um bisel polido: acende do lado da saída e quase some do
+    // outro; fora dela, a espessura projeta uma sombra curta do lado da câmera. O conteúdo
+    // fica como estrutura discreta, sem barra de título, pontos ou varredura.
+    '  if(uPanel>.5){',
+    '    vec2 uc=uv-.5;float tw=clamp(dot(uc,xd)+.5,0.,1.);',
+    '    float fr=pow(1.-clamp(cv,0.,1.),5.);',
+    '    float lb=dot(c,vec3(.2126,.7152,.0722));',
+    '    vec3 body=mix(c,vec3(lb)*lin(PG_TINT)*1.25,.3)*PG_SMOKE+lin(PG_TINT)*PG_FROST*(.5+tw);',
+    '    body+=lin(PG_SHEEN)*(PG_FRES*fr*(.35+.65*tw)+.035*(1.-smoothstep(0.,.3,abs(uc.x*.6+uc.y-.15))));',
+    '    c=mix(c,body,ins*vis);',
+    '    float ed=min(e.x,e.y);',
+    '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
+    '    float sl=.3+.7*max(dot(en,xd),0.);',
+    '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins;',
+    '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis;',
+    '    float out_=1.-ins;',
+    '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
+    '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis;',
+    '    vec2 q=q0-vec2(10.,12.);vec2 bb=sz-vec2(20.,22.);',
+    '    float lod=1.-smoothstep(2.5,7.,fm);',
+    '    if(lod>0.&&q.x>0.&&q.y>0.&&q.x<bb.x&&q.y<bb.y){',
+    '      float ct=hud(q,bb,kd,sd,f.x,f.y)*step(q.x,S.y*bb.x*1.05);',
+    '      c+=lum*min(ct,1.)*SCREEN_INK*PG_INK*K_INK*lod*vis*(.6+.4*tw);',
+    '    }',
+    '    return;',
+    '  }',
     // Véu de vidro.
     '  vec3 scr=lin(dk>.5?mix(SCREEN_TINT_TOP,SCREEN_TINT,uv.y):mix(SCREEN_LIGHT_TOP,SCREEN_LIGHT,uv.y))*SCREEN_EMIT;',
     '  c=mix(c,scr,ins*SCREEN_VEIL*K_VEIL*vis);',
@@ -527,7 +563,8 @@
     '    if(sc<best){best=sc;Z=b;S=st;hit=vec2(a,z);}',
     '  }',
     '  col*=1.-.42*sh*uTech*K_CEIL*K_CEIL;',
-    '  col+=lin(TECH_GLOW)*gl*.30*K_GLOW*K_CEIL*uTech;',
+    '  col+=lin(TECH_GLOW)*gl*.30*K_GLOW*K_CEIL*uTech*(1.-.65*uPanel);',
+    '  col*=1.-.14*gl*uPanel*uTech;',
     '  if(best>=1e9)return;',
     '  float fp=(best>=1e5?best-1e5:best)/uF;',
     // Na imagem, o lado da câmera (z maior) fica em cima.
@@ -765,7 +802,8 @@
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
     '    vec2 wl=wallLight(P.x>0.,P);',
     '    col*=1.-.42*wl.x*uTech*surf;',
-    '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech;',
+    '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel);',
+    '    col*=1.-.14*wl.y*uPanel*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
     '  vec4 cq=vec4(0.),ce=vec4(0.),cs=vec4(0.);',
@@ -834,7 +872,7 @@
     // Telas à frente da superfície; no piso, o reflexo delicado delas.
     '  if(uTech>.001){',
     '    vec4 L,Z,S,Lm,Zm,Sm;vec2 F,Fm;',
-    '    vec2 g=glasses(d,0.,0.,L,F,Z,S);',
+    '    vec2 g=glasses(d,0.,0.,L,F,Z,S)*vec2(1.-.85*uPanel,1.-.8*uPanel);',
     // O reflexo perde nitidez e força à medida que o piso se aproxima da câmera.
     '    if(surf==0.){',
     '      vec2 gr=glasses(d,1.,16.+dz*.05,Lm,Fm,Zm,Sm)*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.);',
@@ -850,9 +888,13 @@
     // Uma face por pixel: a tela da parede, se houver (fica à frente da abóbada); senão a do
     // teto. Assim o desenho da face existe uma vez só no shader.
     '    if(S.y>.01){wallFace(col,d,Z,S,L,F,cq,ce);cs=S;}',
-    '    if(cs.y>.01)screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL);',
+    '    if(cs.y>.01){',
+    '      vec2 xd=S.y>.01?vec2(d.x>0.?-1.:1.,0.):vec2(0.,1.);',
+    '      float cv=S.y>.01?abs(d.x)/length(vec3(d,1.)):ce.z/max(ce.w,1e-4);',
+    '      screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL,xd,cv);',
+    '    }',
     // Borda da tela da parede do lado da saída, acesa pela luz.
-    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech;',
+    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech*(1.-.6*uPanel);',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
@@ -925,7 +967,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1099,6 +1141,7 @@
       gl.uniform1f(u.uRimDown, s.rimDown || 0);
       gl.uniform1f(u.uRimW, s.rimWide || 0);
       gl.uniform1f(u.uMetal, s.metal || 0);
+      gl.uniform1f(u.uPanel, s.panel || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);

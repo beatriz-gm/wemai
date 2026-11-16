@@ -322,6 +322,7 @@
         rim: smooth(p, P.rim),
         rimDown: smooth(p, P.rimDown),
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
+        panel: COARSE ? 1 : 0,   // teste "lâminas de vidro" nos painéis: só no celular
         p: p,
         alpha: 1 - smooth(p, P.fade)
       }
