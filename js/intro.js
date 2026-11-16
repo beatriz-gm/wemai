@@ -344,6 +344,8 @@
         rim: smooth(p, P.rim),
         rimDown: smooth(p, P.rimDown),
         rimExit: ENTRY ? smooth(p, P_RIM_EXIT) : 0,
+        form: COARSE ? 1 : 0,                         // formação gradual: só no celular
+        lineEarly: COARSE ? smooth(p, [.06, .26]) : 0,  // linhas de perspectiva antes das superfícies
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
         panel: COARSE ? 1 : 0,   // teste "lâminas de vidro" nos painéis: só no celular
         glow: COARSE ? 1 : 0,    // teste "luz embutida" nas linhas e feixes: só no celular

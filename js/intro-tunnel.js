@@ -194,7 +194,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -836,6 +836,8 @@
        extremidade do piso (junto às paredes), com um brilho suave em volta; convergem para a
        saída e reforçam a profundidade. Mais fracas perto da câmera, onde a perspectiva as
        engrossa. Acendem com uStrip. No teto não há linhas no comprimento (só os arcos). */
+    // Formação gradual: força das linhas de luz já no começo (antes de acenderem de fato).
+    '  float lnL=0.;float fE=uLineE*(LEN+400.);',   // as linhas varrem do fundo até a câmera
     '  float bm=0.;',
     '  float bslot=0.;',
     '  if(surf==0.){float da=uW-BEAM_EDGE-abs(P.x);',
@@ -848,6 +850,7 @@
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
     '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
     '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(BEAM_BASE+PULSE_K*pulse);',
+    '  if(uForm>.5)lnL+=bm*inT*bnear*(1.-smoothstep(fE-400.,fE,P.z))*uLineE*.8;',
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
     // brilho suave junto ao piso (sem o friso), para não lerem como pilastra solta.
     '  if(surf==3.||surf==5.){',
@@ -915,8 +918,8 @@
        superfície junto a ela (parede, abóbada e piso); refletida no piso polido. Nascem do vão
        em direção à câmera (como a tecnologia, uBuild) e acendem com os frisos (uStrip). Entram
        antes das telas, que ficam à frente delas. */
-    '  if(uStrip>.001){',
-    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.,rs=0.;float fr0=uBuild*(LEN+320.);',
+    '  if(uStrip>.001||uForm>.5&&uLineE>.001){',
+    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.,rs=0.,lnE=0.;float fr0=uBuild*(LEN+320.);',
     '    for(int k=0;k<RIB_N;k++){',
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
     '      float on=1.-smoothstep(fr0-260.,fr0,zr);',
@@ -929,6 +932,7 @@
     // Só os arcos, na parte de cima: a linha termina onde a abóbada nasce (sem descer as paredes).
     '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y));',
     '      float dl=abs(sr-RIB_W);',
+    '      if(uForm>.5)lnE+=(line(dl,.6,fl)+exp(-dl/(4.+fl))*.25)*smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y))*(1.-smoothstep(fE-400.,fE,zr));',
     '      if(uGlow>.5){',
     '        float jn=1.+LG_JOIN*smoothstep(SPRING-170.,SPRING-40.,y);',
     '        float dp=mix(1.,LG_FAR,smoothstep(500.,2200.,tl))*(.7+.3*smoothstep(120.,520.,tl));',
@@ -942,6 +946,7 @@
     '    }',
     '    col*=1.-rs*LG_SLOT*uStrip;',
     '    col+=lin(BEAM)*(rc*RIB_K+rh)*uStrip;',
+    '    if(uForm>.5)lnL+=lnE*uLineE;',
     '  }',
 
     // Telas à frente da superfície; no piso, o reflexo delicado delas.
@@ -979,7 +984,23 @@
     '  float halo=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
     // Exposição: tudo começa branco e ganha tom e contraste progressivamente.
     '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
-    '  col=mix(white,col,uMat);',
+    /* Formação gradual (celular): em vez de o túnel inteiro sair do branco de uma vez, cada
+       parte se revela no seu tempo: primeiro o fundo, junto à saída, avançando em direção à
+       câmera (profundidade crescente); abóbada antes das paredes, e o piso (com o reflexo) por
+       último. Antes das superfícies, as linhas de luz já desenham a perspectiva sobre o branco,
+       quase imperceptíveis. Ao fim de uMat, tudo chega ao mesmo estado de antes. */
+    '  float mL=uMat;',
+    '  if(uForm>.5){',
+    '    float u=clamp(t/max(uCam,1.),0.,1.);',
+    // Atraso: profundidade (o fundo primeiro) e superfície, contínuo nas quinas (a parede
+    // atrasa descendo da abóbada até o piso; o piso, das bordas para o centro).
+    '    float dl=(1.-u)*(1.-u)*.42;',
+    '    if(surf==1.)dl+=.06*smoothstep(SPRING,FLOOR,P.y);',
+    '    if(surf==0.)dl+=.06+.10*smoothstep(0.,uW*.8,uW-abs(P.x));',
+    '    mL=smoothstep(0.,1.,clamp(uMat*1.9-dl,0.,1.));',
+    '  }',
+    '  col=mix(white,col,mL);',
+    '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
     '  {vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);col=rimOn(col,rims(d),uArcG>.001?arcHalo(q0):0.);}',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
@@ -1043,7 +1064,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1221,6 +1242,8 @@
       gl.uniform1f(u.uGlow, s.glow || 0);
       gl.uniform1f(u.uCeil, s.ceil || 0);
       gl.uniform1f(u.uRimX, s.rimExit || 0);
+      gl.uniform1f(u.uForm, s.form || 0);
+      gl.uniform1f(u.uLineE, s.lineEarly || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
