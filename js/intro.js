@@ -151,6 +151,18 @@
   // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
   if (COARSE) P.tips = [0, .035];
 
+  /* Saída distante (celular, referência tuneltech, frames 04–06). O arco da logo deixa de ser a
+     própria saída: ele forma a entrada do túnel (plano z = ENTRY), perto da câmera, e a saída
+     (z = 0) fica ENTRY mais longe. Assim, no meio da travessia, a estrutura ocupa o quadro e as
+     linhas convergem para uma saída ainda pequena; ela só cresce no fim, até a paisagem
+     preencher a tela. O começo (logo, letras, arco virando borda) e a chegada são os mesmos:
+     a distância até a entrada segue a câmera de antes e a distância extra se fecha devagar
+     (ver cameraDistance). No desktop, ENTRY = 0: tudo como antes. */
+  var ENTRY = COARSE ? 4200 : 0;
+  GEOMETRY.entry = ENTRY;
+  GEOMETRY.length += ENTRY;
+  var P_RIM_EXIT = [.18, .42];   // o fio de luz da saída acende com a formação do túnel
+
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
      Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
@@ -204,9 +216,18 @@
   // chegada suaves: sem aceleração concentrada no final.
   var cameraEase = cubicBezier(.4, .1, .75, 1);
 
-  function cameraDistance(p) {
+  // Câmera de antes: distância até o plano do arco da logo (a entrada).
+  function entryDistance(p) {
     return CAMERA_START * Math.pow(view.cameraEnd / CAMERA_START, cameraEase(p));
   }
+  // Distância até a saída: a da entrada mais o trecho extra, que se fecha com partida e
+  // chegada suaves (acelera e desacelera sem salto), concentrado na segunda metade.
+  function cameraDistance(p) {
+    if (!ENTRY) return entryDistance(p);
+    var s = smoothstepJs(phase(p, [.18, 1]));
+    return entryDistance(p) + ENTRY * (1 - Math.pow(s, 2.5));
+  }
+  function smoothstepJs(u) { return u * u * (3 - 2 * u); }
 
   /* --- Medidas ----------------------------------------------------------- */
 
@@ -288,7 +309,8 @@
   function sceneAt(t) {
     var p = phase(t, T.camera);
     var camera = cameraDistance(p);
-    var travel = Math.log(CAMERA_START / camera) / Math.log(CAMERA_START / view.cameraEnd);
+    // O ritmo da logo, das letras e da paisagem segue a câmera de antes.
+    var travel = Math.log(CAMERA_START / entryDistance(p)) / Math.log(CAMERA_START / view.cameraEnd);
     var far = 1 - LANDSCAPE_ZOOM * (1 - travel);
     var frame = landscapeFrame(far);
     return {
@@ -321,6 +343,7 @@
         rimWide: 1 - smooth(p, P.rimThin),
         rim: smooth(p, P.rim),
         rimDown: smooth(p, P.rimDown),
+        rimExit: ENTRY ? smooth(p, P_RIM_EXIT) : 0,
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
         panel: COARSE ? 1 : 0,   // teste "lâminas de vidro" nos painéis: só no celular
         glow: COARSE ? 1 : 0,    // teste "luz embutida" nas linhas e feixes: só no celular
@@ -338,7 +361,7 @@
     var camera = scene.camera;
     var travel = scene.travel;
 
-    placePlane(markPlane, view.focal / camera);
+    placePlane(markPlane, view.focal / Math.max(camera - ENTRY, 1));
     mark.style.opacity = easeInOutSine(phase(t, T.markIn));
     wordmark.style.opacity = COARSE
       ? (1 - Math.sin(phase(travel, [0, WORDMARK_TRAVEL]) * Math.PI / 2)).toFixed(4)

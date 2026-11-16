@@ -120,6 +120,9 @@
   // com poucos registros de uniform, cai para 8 (ver create).
   var PANEL_SLOTS = 10;
   var WALL_GAP = 2.5, PANEL_SPEED = 6.5;
+  // Saída distante (celular): as telas se espalham pelo túnel mais longo, na mesma ordem e
+  // tamanho (ver create).
+  var PANEL_DEPTH = 1;
 
   function smoothstepJs(a, b, x) { var t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); }
 
@@ -158,14 +161,16 @@
       if (k >= PANEL_SLOTS * (side + 1)) return;
       var seed = PANEL_KINDS[i % PANEL_KINDS.length] + 10 * q[8] + ((i * .618) % 1) * .98;
       var m = panelMotion(q[5], q[6], q[7], seed, p);
-      box.set([q[1] + m.u, q[2] + m.u, q[3] + m.v, q[4] + m.v], k * 4);
+      var z0 = q[1] * PANEL_DEPTH;
+      box.set([z0 + m.u, z0 + q[2] - q[1] + m.u, q[3] + m.v, q[4] + m.v], k * 4);
       state.set([m.g, m.vis, m.loose, seed], k * 4);
     });
     CEIL_PANELS.forEach(function (q, i) {
       if (i >= PANEL_SLOTS) return;
       var seed = PANEL_KINDS[(i + 5) % PANEL_KINDS.length] + 10 * q[7] + ((i * .618 + .3) % 1) * .98;
       var m = panelMotion(q[4], q[5], q[6], seed, p);
-      cbox.set([q[0] + m.v, q[1] + m.v, q[2] + m.u, q[3] + m.u], i * 4);
+      var c0 = q[2] * PANEL_DEPTH;
+      cbox.set([q[0] + m.v, q[1] + m.v, c0 + m.u, c0 + q[3] - q[2] + m.u], i * 4);
       cstate.set([m.g, m.vis, m.loose, seed], i * 4);
     });
   }
@@ -189,7 +194,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -202,6 +207,11 @@
       '#define FLOOR ' + f(g.floor),
       '#define SPRING ' + f(g.spring),
       '#define LEN ' + f(g.length),
+      // Saída distante (só no celular): plano do arco da logo (entrada) e passo/quantidade das
+      // camadas de luz, para cobrirem o túnel mais longo. No desktop: entrada 0, como antes.
+      '#define ENTRY ' + f(g.entry || 0),
+      '#define RIB_SP ' + f(g.entry ? 300 : 210),
+      '#define RIB_N ' + (g.entry ? Math.ceil(g.length / 300) : 11),
       '#define REVEAL ' + f(g.reveal),
       '#define ARC_CY ' + f(g.arcCenterY),
       '#define ARC_R ' + f(g.outerR),
@@ -251,8 +261,7 @@
     // meia-espessura do tubo, cor do halo (ciano), cor do núcleo (quase branco, saturado de
     // luz), força do núcleo, do halo e da luz que a linha lança na parede, abóbada e piso.
     // Ficam fora do cone de visão do vão: nunca cobrem a paisagem.
-    'const float RIB_Z0=160.;const float RIB_S=210.;',
-    '#define RIB_N 11',
+    'const float RIB_Z0=160.;const float RIB_S=RIB_SP;',
     'const float RIB_W=5.;const float RIB_HW=.7;',
     'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
     // Mesma intensidade das linhas de luz do piso (fora do pulso: BEAM_K·BEAM_BASE).
@@ -612,11 +621,12 @@
     /* Borda da boca do túnel, no plano do fundo (q): (fio, halo). Vale em qualquer pixel (névoa
        branca do início, paredes, paisagem), por isso a borda existe desde que o túnel se forma,
        mesmo antes de as superfícies ganharem cor. Mais fraca descendo para o piso. */
-    'vec2 rimLight(vec2 q){',
+    // q: ponto no plano do arco (entrada); dist: distância da câmera a esse plano.
+    'vec2 rimLight(vec2 q,float dist){',
     '  if(uRim<.001||q.y>FLOOR)return vec2(0.);',
     // Enquanto o arco cresce, a borda acompanha o tamanho dele (escala em torno do centro).
     '  float sc=uV/max(uArcR,1.);vec2 qs=vec2(q.x*sc,SPRING+(q.y-SPRING)*sc);',
-    '  float fo=uCam/uF;float sv=abs(mouthIn(qs))/sc;',
+    '  float fo=dist/uF;float sv=abs(mouthIn(qs))/sc;',
     '  float k=rimAt(q.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));',
     // Espessura do fio: no início, a mesma da faixa do arco (que vira a borda); afina depois.
     '  return vec2(line(sv,1.+3.8*uRimW,fo),exp(-sv/(5.+fo))*.8+exp(-sv/50.)*.15)*k;',
@@ -624,6 +634,18 @@
     // Aplica borda e halo do arco sobre uma cor sRGB.
     // O fio puxa para o ciano (mais saturado sobre fundo claro, para ler como luz no branco) e soma
     // brilho (sobre o escuro).
+    // Saída distante: a borda do arco da logo fica na entrada (z = ENTRY) e some quando a
+    // câmera passa por ela; a saída (z = 0) tem o seu fio de luz, que acende com o túnel.
+    'vec2 rims(vec2 d){',
+    '  float de=uCam-ENTRY;vec2 o=vec2(0.);',
+    '  if(de>1.)o=rimLight(vec2(de*d.x,EYE+de*d.y),de)*(ENTRY>0.?smoothstep(40.,500.,de):1.);',
+    '  if(ENTRY>0.&&uRimX>.001){',
+    '    vec2 q=vec2(uCam*d.x,EYE+uCam*d.y);',
+    '    if(q.y<=FLOOR){float fo=uCam/uF;float sv=abs(mouthIn(q));',
+    '      o+=vec2(line(sv,1.,fo),exp(-sv/(5.+fo))*.8+exp(-sv/50.)*.15)*uRimX*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
+    '  }',
+    '  return o;',
+    '}',
     'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);float lu=dot(c,vec3(.3,.59,.11));vec3 cc=mix(vec3(.50,.86,1.),vec3(.20,.62,.96),smoothstep(.6,.95,lu));return mix(c,cc,k*mix(.6,.9,smoothstep(.6,.95,lu)))+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
@@ -663,7 +685,7 @@
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
     // Brilho da borda da boca do túnel espalhado sobre a paisagem.
-    '    vec2 rl=rimLight(q);float ah=arcHalo(q);',
+    '    vec2 rl=rims(d);float ah=arcHalo(q);',
     // Halo do arco: sobre a névoa branca, puxa para o ciano; sobre a paisagem, soma luz.
     // Sobre a névoa branca, a luz puxa para o ciano; sobre a paisagem, soma.
     '    vec3 hz=a>.001?rimOn(haze,rl,ah):haze;',
@@ -675,7 +697,7 @@
     '    float h0=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
     '    vec3 w0=mix(vec3(1.),HALO,uLight*h0*.45);',
     '    vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);',
-    '    w0=rimOn(w0,rimLight(q0),uArcG>.001?arcHalo(q0):0.);',
+    '    w0=rimOn(w0,rims(d),uArcG>.001?arcHalo(q0):0.);',
     '    gl_FragColor=vec4(w0,1.)*uAlpha;return;',
     '  }',
 
@@ -744,7 +766,7 @@
     '    bounce=alb*lin(FLOOR_S)*Lavg*GAIN*BOUNCE*Fb;',
     '  }',
     // Luz que circula no túnel (inter-reflexão): mais forte junto à saída.
-    '  float dz=max(P.z,0.);',
+    '  float dz=max(P.z,0.)*2700./LEN;',   // saída distante: as quedas de luz acompanham o comprimento
     '  vec3 amb=alb*Lavg*GAIN*AMB*(.38+.62*exp(-dz/900.));',
     // Oclusão dos cantos (só na luz indireta; a direta já é exata).
     '  float ao=1.;',
@@ -806,6 +828,9 @@
 
     // Sem frisos (teste): as faixas de luz junto ao piso e à nascente da abóbada saíram, para
     // as paredes não ficarem quadriculadas. Trecho do túnel onde os feixes existem:
+    // Saída distante: a câmera expõe para o túnel enquanto está longe da saída (como uma
+    // câmera real), para a estrutura manter o tom de antes; as luzes não entram nessa conta.
+    '  if(ENTRY>0.)col*=pow(max(uCam/2400.,1.),1.25);',
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
     /* Feixes de luz ciano (teste): duas linhas finas de luz ao longo do túnel, uma em cada
        extremidade do piso (junto às paredes), com um brilho suave em volta; convergem para a
@@ -956,7 +981,7 @@
     '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
     '  col=mix(white,col,uMat);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
-    '  {vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);col=rimOn(col,rimLight(q0),uArcG>.001?arcHalo(q0):0.);}',
+    '  {vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);col=rimOn(col,rims(d),uArcG>.001?arcHalo(q0):0.);}',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
     '}'
   ].join('\n');
@@ -989,6 +1014,7 @@
      photo: a <img> da paisagem (fonte da luz e do reflexo). */
   function create(canvas, geometry, onLost, photo) {
     var gl, program;
+    PANEL_DEPTH = geometry.entry ? (geometry.length - 300) / 2400 : 1;
     try {
       var options = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' };
       gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options);
@@ -1017,7 +1043,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1194,6 +1220,7 @@
       gl.uniform1f(u.uPanel, s.panel || 0);
       gl.uniform1f(u.uGlow, s.glow || 0);
       gl.uniform1f(u.uCeil, s.ceil || 0);
+      gl.uniform1f(u.uRimX, s.rimExit || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
