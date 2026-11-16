@@ -235,6 +235,18 @@
     // ao longo do túnel), altura da junta horizontal das paredes e desalinhamento entre placas.
     'const float PANEL_FX=150.;const float PANEL_Z=220.;const float PANEL_MID=575.;',
     'const float PANEL_TILT=.06;',
+    // Feixes de luz ciano (teste): cor, força, altura na parede e posição na abóbada (fração de
+    // uW medida no arco a partir do alto).
+    'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_WALL_Y=520.;const float BEAM_VAULT=.55;',
+    // Pulso nos feixes: espaçamento entre pulsos (ao longo do túnel), velocidade (pulsos por
+    // abertura, em relação ao progresso da câmera) e força. O feixe fixo fica em BEAM_BASE da
+    // força; o pulso mantém a sua.
+    'const float PULSE_GAP=900.;const float PULSE_SPEED=6.;const float PULSE_K=1.6;',
+    // Arcos-camada (teste): três contornos com a forma do vão, distribuídos ao longo do túnel
+    // com a mesma distância entre si (primeiro plano, a partir da parede do fundo, e passo),
+    // dentro do trecho que a câmera percorre com o túnel visível: ela atravessa os dois mais
+    // distantes do fundo; o mais próximo fica à frente até a chegada. Folga, cor e força.
+    'const float LAYER_Z=450.;const float LAYER_STEP=450.;const float LAYER_OFF=26.;const vec3 LAYER_C=vec3(.86,.95,1.);const float LAYER_K=1.;',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -563,11 +575,9 @@
     '  vec3 Nn=N;float rough=.3,cav=1.;',
     '  vec2 sd=vec2(1e4),pid=vec2(0.),fpa=vec2(fp);',
     '  if(surf==0.){vec2 g=vec2(PANEL_FX,PANEL_Z);vec2 q=P.xz-vec2(PANEL_FX*.5,0.);pid=floor(q/g);sd=abs(q-g*floor(q/g+.5));fpa=vec2(fp,fp*t/(FLOOR-EYE));rough=.14;}',
-    '  else if(surf==1.){pid=vec2(floor(P.z/PANEL_Z),P.y<PANEL_MID?0.:1.);',
-    '    sd=vec2(abs(P.z-PANEL_Z*floor(P.z/PANEL_Z+.5)),min(abs(P.y-PANEL_MID),min(abs(P.y-SPRING),FLOOR-P.y)));fpa=vec2(fp*t/uW,fp);rough=.16;}',
-    '  else if(surf==2.){vec2 g=vec2(PANEL_Z,uW*PI/6.);vec2 q=vec2(P.z,uv.y);pid=floor(q/g);sd=abs(q-g*floor(q/g+.5));fpa=vec2(fp*t/uW,fp);rough=.16;}',
-    '  else if(surf==3.){vec2 g=vec2(PANEL_FX,165.);vec2 q=P.xy-vec2(PANEL_FX*.5,SPRING);pid=floor(q/g)+17.;sd=abs(q-g*floor(q/g+.5));rough=.16;}',
-    '  if(surf<=3.){',
+    // Paredes, abóbada e fundo: vidro polido contínuo, sem placas (teste); o piso mantém as placas.
+    '  else if(surf<=3.){rough=.16;}',
+    '  if(surf==0.){',
     '    float h1=hash(pid+surf*13.1),h2=hash(pid.yx+surf*7.3+3.);',
     '    vec3 B=cross(N,T);',
     '    Nn=normalize(N+(T*(h1-.5)+B*(h2-.5))*PANEL_TILT);',
@@ -655,8 +665,8 @@
 
     // Juntas dos painéis: só a fresta escura e fina, em todas as superfícies (como no piso,
     // sem luz). Aparecem com as juntas (uJoint).
-    '  if(surf<=3.){',
-    '    float inZ=surf==3.?1.:smoothstep(20.,60.,P.z);',
+    '  if(surf==0.){',
+    '    float inZ=smoothstep(20.,60.,P.z);',
     '    float gro=max(line(sd.x,.6,fpa.x),line(sd.y,.6,fpa.y));',
     '    col*=1.-.30*gro*uJoint*inZ;',
     '  }',
@@ -673,6 +683,16 @@
     '    st=exp(-(SPRING-P.y)/70.)*.22;',
     '  }',
     '  col+=lin(STRIP)*st*inT*uStrip*STRIP_K;',
+    /* Feixes de luz ciano (teste): linhas finas de luz ao longo do túnel, em direção à saída
+       (duas na abóbada, uma em cada parede), com um brilho suave em volta. Junto com os frisos,
+       convergem para o fundo e reforçam a profundidade. Mais fracos perto da câmera, onde a
+       perspectiva os engrossa. Acendem com os frisos (uStrip). */
+    '  float bm=0.;',
+    '  if(surf==1.){float dy=P.y-BEAM_WALL_Y;bm=line(dy,1.2,fp)+exp(-abs(dy)/(10.+fp*2.))*.22;}',
+    '  else if(surf==2.){float da=abs(uv.y)-uW*BEAM_VAULT;bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
+    // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
+    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*(.45+.55*smoothstep(150.,900.,t))*(BEAM_BASE+PULSE_K*pulse);',
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
     // brilho suave junto ao piso (sem o friso), para não lerem como pilastra solta.
     '  if(surf==3.||surf==5.){',
@@ -769,6 +789,18 @@
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
+    /* Arcos-camada (teste): três contornos de luz bem sutis com a mesma forma do vão (arco e
+       laterais até o piso), em planos distribuídos ao longo do túnel, igualmente espaçados e um
+       pouco maiores que o vão, como camadas antes da abertura. Cada um só onde o seu plano fica
+       à frente do que o raio atinge. */
+    '  for(int k=0;k<3;k++){',
+    '    float tl=uCam-LAYER_Z-float(k)*LAYER_STEP;',
+    '    if(tl<=0.||tl>=t)continue;',
+    '    vec2 ql=vec2(tl*d.x,EYE+tl*d.y);float fl=tl/uF;',
+    '    float ls=(ql.y<JAMB_Y?length(vec2(ql.x,ql.y-IN_CY))-IN_R:abs(ql.x)-JAMB_X)-LAYER_OFF;',
+    '    float lm=1.-smoothstep(FLOOR-6.,FLOOR,ql.y);',
+    '    col+=lin(LAYER_C)*(line(ls,1.,fl)+exp(-abs(ls)/(8.+fl*2.))*.14)*lm*LAYER_K*smoothstep(.3,.9,uMat);',
+    '  }',
     '  col=enc(neutral(col));',
     '  col+=(hash(gl_FragCoord.xy)-.5)*.02;',
     // Primeira luz: halo quente ao redor do arco, antes de a matéria aparecer.
