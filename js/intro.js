@@ -117,18 +117,18 @@
     column: [.24, .55],      // e depois abaixo dele, entre as ombreiras
     matter: [.08, .58],      // as superfícies saem do branco e ganham tom e contraste
     tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
-    // Teste "abertura direta": assim que a câmera parte, o arco se acende (azul da marca →
-    // luz ciano) e cresce até a boca do túnel; quando o túnel começa a surgir (matter, p .08),
-    // ele já virou a borda acesa da boca, inteira até o piso. Nunca fica um arco sólido sobre
-    // o túnel.
-    arcTone: [0, .07],       // o arco passa do azul da marca à luz ciano
-    arcGlow: [0, .07],       // e ganha um halo de luz (desenhado no canvas)
-    rim: [.05, .1],          // a borda da boca acende sob o arco
-    rimDown: [.075, .13],    // e desce pelas laterais até o piso, depois que as pontas sumiram
-    arcMerge: [.07, .12],    // o arco se dissolve na borda: resta só ela
+    // Teste "abertura direta": assim que a câmera parte, o arco vai mudando de cor devagar
+    // (azul da marca → luz ciano) enquanto cresce até a boca do túnel, e só termina de mudar
+    // quando encontra a estrutura que surge (matter, a partir de p .08); então se dissolve na
+    // borda acesa da boca, que desce até o piso. Nunca fica um arco sólido sobre o túnel.
+    arcTone: [0, .14],       // o arco passa, devagar, do azul da marca à luz ciano
+    arcGlow: [.03, .14],     // e ganha um halo de luz (desenhado no canvas)
+    rim: [.08, .16],         // a borda da boca acende sob o arco, com o túnel surgindo
+    rimDown: [.1, .18],      // e desce pelas laterais até o piso, depois que as pontas sumiram
+    arcMerge: [.11, .19],    // o arco se dissolve na borda: resta só ela
     // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
     // surgem do branco. Sem porta.
-    arcGrow: [0, .08],
+    arcGrow: [0, .11],
     joints: [.24, .6],
     strips: [.32, .66],
     // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
