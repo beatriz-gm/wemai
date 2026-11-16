@@ -232,9 +232,8 @@
     // ondulação do reflexo no piso.
     'const float TILE=330.;const float ALB_DETAIL=.35;const float RELIEF=.7;',
     'const float SHEEN=1.4;const float CAVITY=.5;const float MACRO=.10;const float RIPPLE=40.;',
-    // Feixes de luz ciano (teste): cor, força e posição na abóbada (fração de uW medida no
-    // arco a partir do alto).
-    'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_VAULT=.55;',
+    // Feixes de luz ciano (teste): cor, força e distância à parede (nas bordas do piso).
+    'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_EDGE=8.;',
     // Pulso nos feixes: espaçamento entre pulsos (ao longo do túnel), velocidade (pulsos por
     // abertura, em relação ao progresso da câmera) e força. O feixe fixo fica em BEAM_BASE da
     // força; o pulso mantém a sua.
@@ -692,12 +691,12 @@
     // Sem frisos (teste): as faixas de luz junto ao piso e à nascente da abóbada saíram, para
     // as paredes não ficarem quadriculadas. Trecho do túnel onde os feixes existem:
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
-    /* Feixes de luz ciano (teste): linhas finas de luz ao longo do túnel, em direção à saída
-       (uma de cada lado da abóbada), com um brilho suave em volta. Junto com os frisos,
-       convergem para o fundo e reforçam a profundidade. Mais fracos perto da câmera, onde a
-       perspectiva os engrossa. Acendem com os frisos (uStrip). */
+    /* Feixes de luz ciano (teste): duas linhas finas de luz ao longo do túnel, uma em cada
+       extremidade do piso (junto às paredes), com um brilho suave em volta; convergem para a
+       saída e reforçam a profundidade. Mais fracas perto da câmera, onde a perspectiva as
+       engrossa. Acendem com uStrip. No teto não há linhas no comprimento (só os arcos). */
     '  float bm=0.;',
-    '  if(surf==2.){float da=abs(uv.y)-uW*BEAM_VAULT;bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
+    '  if(surf==0.){float da=uW-BEAM_EDGE-abs(P.x);bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
     '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*(.45+.55*smoothstep(150.,900.,t))*(BEAM_BASE+PULSE_K*pulse);',
