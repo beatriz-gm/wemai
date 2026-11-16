@@ -689,18 +689,9 @@
     '  }',
 
 
-    // Frisos: fonte linear junto ao piso e à nascente da abóbada, que ilumina o entorno.
+    // Sem frisos (teste): as faixas de luz junto ao piso e à nascente da abóbada saíram, para
+    // as paredes não ficarem quadriculadas. Trecho do túnel onde os feixes existem:
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
-    '  float st=0.;',
-    '  if(surf==1.){',
-    '    st=line(FLOOR-P.y,2.2,fp)*1.25+exp(-(FLOOR-P.y)/55.)*.34;',
-    '    st+=line(P.y-SPRING,1.6,fp)*.85+exp(-abs(P.y-SPRING)/70.)*.24;',
-    '  }else if(surf==0.){',
-    '    st=exp(-(uW-abs(P.x))/50.)*.36*step(abs(P.x),uW);',
-    '  }else if(surf==2.){',
-    '    st=exp(-(SPRING-P.y)/70.)*.22;',
-    '  }',
-    '  col+=lin(STRIP)*st*inT*uStrip*STRIP_K;',
     /* Feixes de luz ciano (teste): linhas finas de luz ao longo do túnel, em direção à saída
        (uma de cada lado da abóbada), com um brilho suave em volta. Junto com os frisos,
        convergem para o fundo e reforçam a profundidade. Mais fracos perto da câmera, onde a
@@ -781,14 +772,14 @@
     '    for(int k=0;k<RIB_N;k++){',
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
     '      float on=1.-smoothstep(fr0-260.,fr0,zr);',
-    // Luz lançada na superfície junto à linha (cai com a distância ao plano dela).
-    '      if(surf<=2.&&P.z>0.){float dw=surf==0.?uW-abs(P.x):0.;',
-    '        rh+=exp(-length(vec2(P.z-zr,dw))/38.)*RIB_SPILL*on;}',
+    // Luz lançada na abóbada junto à linha (cai com a distância ao plano dela).
+    '      if(surf==2.&&P.z>0.)rh+=exp(-abs(P.z-zr)/38.)*RIB_SPILL*on;',
     '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=on;',
-    '      if(tl>=t){if(surf!=0.)continue;y=2.*FLOOR-y;wk*=frT*.9*exp(-max(t-500.,0.)/900.);}',
+    '      if(tl>=t)continue;',
     '      float x=tl*d.x;float fl=tl/uF;',
     '      float sr=y>SPRING?uW-abs(x):(1.-length(vec2(x/uW,(y-SPRING)/uV)))*min(uW,uV);',
-    '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(FLOOR-4.,FLOOR,y));',
+    // Só os arcos, na parte de cima: a linha termina onde a abóbada nasce (sem descer as paredes).
+    '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(SPRING-40.,SPRING+4.,y));',
     '      float dl=abs(sr-RIB_W);',
     '      rc+=line(dl,RIB_HW,fl)*wk;',
     '      rh+=(exp(-dl/(3.+fl))*RIB_HALO+exp(-dl/(26.+fl*3.))*.07)*wk;',
