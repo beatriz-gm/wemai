@@ -148,7 +148,7 @@
      somem um pouco mais devagar, para o arco não mudar de forma de repente. */
   var COARSE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   var WORDMARK_TRAVEL = .12;
-  if (COARSE) P.tips = [.02, .09];   // o trecho abaixo do centro some antes de o arco virar a borda
+  if (COARSE) P.tips = [0, .04];   // as pontas (abaixo do centro) somem assim que a abertura começa a se formar
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
