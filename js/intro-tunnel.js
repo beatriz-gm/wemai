@@ -189,7 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -232,6 +232,12 @@
     // ondulação do reflexo no piso.
     'const float TILE=330.;const float ALB_DETAIL=.35;const float RELIEF=.7;',
     'const float SHEEN=1.4;const float CAVITY=.5;const float MACRO=.10;const float RIPPLE=40.;',
+    // Teste "metal azul acetinado" (só no celular, uMetal): rugosidade base e variação (manchas
+    // amplas, médias e escovado ao longo do túnel), ondulação das normais (chapas levemente
+    // empenadas), parte especular tingida pelo azul (metal), perda do difuso, força do reflexo
+    // difuso do entorno e do brilho da saída.
+    'const float MET_ROUGH=.34;const float MET_VAR=.24;const float MET_BRUSH=.08;const float MET_BEND=12.;',
+    'const float MET_TINT=.7;const float MET_DIFF=.55;const float MET_ENV=2.2;const float MET_SHEEN=2.;const float MET_MIRROR=.32;',
     // Feixes de luz ciano (teste): cor, força e distância à parede (nas bordas do piso).
     'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_EDGE=8.;',
     // Pulso nos feixes: espaçamento entre pulsos (ao longo do túnel), velocidade (pulsos por
@@ -286,6 +292,10 @@
     // Hash só com aritmética (seno é caro em GPU de celular).
     'float hash(vec2 p){vec3 q=fract(p.xyx*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}',
     // Ruído de valor: manchas amplas do microcimento e mistura das duas escalas da textura.
+    // Cor da paisagem na abertura em uma altura (faixas da foto, interpoladas).
+    'vec3 bandAt(float y){float k=clamp((FLOOR-y)/(FLOOR-JAMB_Y)*4.-.5,0.,4.);',
+    '  vec3 c=mix(uBand[0],uBand[1],clamp(k,0.,1.));c=mix(c,uBand[2],clamp(k-1.,0.,1.));',
+    '  c=mix(c,uBand[3],clamp(k-2.,0.,1.));c=mix(c,uBand[4]*SKY*2.,clamp(k-3.,0.,1.));return lin(c);}',
     'float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);',
     '  return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}',
 
@@ -613,6 +623,18 @@
     // Vidro polido contínuo em todas as superfícies, sem placas nem frestas (menos
     // quadriculado; as únicas linhas no sentido do túnel são uma por lado no piso e na abóbada).
     '  if(surf==0.)rough=.14;else if(surf<=3.)rough=.16;',
+    // Metal acetinado nas paredes e na abóbada: rugosidade que varia naturalmente, normais
+    // levemente onduladas (a luz rasante da saída revela o volume) e pequenas variações de tom.
+    // Os detalhes finos somem com a distância, para não cintilar.
+    '  float met=0.;',
+    '  if(uMetal>.001&&(surf==1.||surf==2.)){',
+    '    met=uMetal;vec3 B=cross(N,T);float fd=1./(1.+t/1600.);',
+    '    float m1=vnoise(uv/260.+3.1),m2=vnoise(uv/70.+7.3),br=vnoise(vec2(uv.x/520.,uv.y/3.2));',
+    '    rough=mix(rough,MET_ROUGH+MET_VAR*(m1-.5)+(.6*MET_VAR*(m2-.5)+MET_BRUSH*(br-.5))*fd,met);',
+    '    vec2 hu=uv/vec2(700.,380.);float h0=vnoise(hu),hx=vnoise(hu+vec2(.03,0.)),hy=vnoise(hu+vec2(0.,.03));',
+    '    Nn=normalize(N-(T*(hx-h0)+B*(hy-h0))*MET_BEND*met);',
+    '    alb*=1.+(.08*(m1-.5)+.10*(br-.5)*fd)*met;',
+    '  }',
 
     // Luz da paisagem: a abertura dividida em faixas, cada uma com a cor média da foto
     // naquela altura (calculada em JS). No próprio vão (z = 0) a parede do fundo bloqueia
@@ -690,7 +712,24 @@
     '    float Fs=.04+.96*pow(1.-max(dot(Vd,H),0.),5.);',
     '    float lh=dot(Lv,H);float vis=.25/max(lh*lh,.1);',
     '    float om=min(3.2e5*max(-Lv.z,0.)/(ld*ld),1.5);',
-    '    col+=D*Fs*vis*nl*om*(a*a/(a2*a2))*Lavg*GAIN*SHEEN*cav;',
+    '    vec3 Fm=mix(vec3(Fs),mix(vec3(.04),alb,MET_TINT)+(1.-mix(vec3(.04),alb,MET_TINT))*pow(1.-max(dot(Vd,H),0.),5.),met);',
+    '    col=col*mix(1.,MET_DIFF,met)+D*Fm*vis*nl*om*(a*a/(a2*a2))*Lavg*GAIN*SHEEN*mix(1.,MET_SHEEN,met)*cav;',
+    // Reflexo difuso do entorno no metal: para baixo ele vê o piso iluminado pela saída, para
+    // cima a abóbada mais escura; em direção à saída, a luz dela. Assim o tom muda com a
+    // orientação da superfície (volume) e a transição entre luz e sombra é suave.
+    '    if(met>0.){',
+    '      float nv=max(dot(Nn,Vd),0.);vec3 R=reflect(-Vd,Nn);',
+    '      vec3 F0=mix(vec3(.04),alb,MET_TINT);vec3 Fr=F0+(1.-F0)*pow(1.-nv,5.)*(1.-rough)*.6;',
+    '      float dn=clamp(R.y*.5+.5,0.,1.);',
+    '      vec3 env=Lavg*GAIN*AMB*(.2+1.4*dn*dn)*(.4+.6*exp(-dz/900.));',
+    // Reflexo acetinado da própria saída: o raio refletido vai até o plano da boca; se cair
+    // dentro dela, reflete a cor da paisagem naquela altura, borrado pela rugosidade (mais
+    // borrado quanto mais longe da boca). É o que mostra o metal reagindo à luz.
+    '      float sz=(zl-P.z)/min(R.z,-1e-3);vec2 hq=P.xy+R.xy*sz;float bw=10.+rough*sz*1.1;',
+    '      float inw=(1.-smoothstep(-bw,bw,portalSd(hq)))*step(R.z,0.)*(28./(28.+bw*.25));',
+    '      env+=bandAt(hq.y)*wb*GAIN*inw*MET_MIRROR;',
+    '      col+=env*Fr*MET_ENV*met*ao;',
+    '    }',
     '  }',
 
 
@@ -886,7 +925,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1059,6 +1098,7 @@
       gl.uniform1f(u.uRim, s.rim || 0);
       gl.uniform1f(u.uRimDown, s.rimDown || 0);
       gl.uniform1f(u.uRimW, s.rimWide || 0);
+      gl.uniform1f(u.uMetal, s.metal || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
