@@ -121,13 +121,7 @@
     // transforma na borda acesa da boca do túnel: a borda nasce exatamente sobre ele e os dois
     // crescem juntos até a boca, enquanto o arco se dissolve nela. O arco não vira um elemento
     // aceso antes; a mudança de cor é a própria passagem para a borda, que depois desce até o piso.
-    rim: [.01, .12],         // a borda acende sobre o arco
-    arcMerge: [.01, .12],    // enquanto o arco se dissolve nela
-    // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
-    // surgem do branco. Sem porta.
-    arcGrow: [0, .12],
-    rimDown: [.08, .16],     // e desce pelas laterais até o piso, depois que as pontas sumiram
-    rimThin: [.1, .22],      // a borda nasce com a espessura do arco e afina até o fio de luz
+    // (as janelas da passagem arco → borda são definidas logo abaixo, depois das letras)
     joints: [.24, .6],
     strips: [.32, .66],
     // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
@@ -149,7 +143,20 @@
   var WORDMARK_TRAVEL = .12;
   // As pontas (abaixo do centro) somem devagar enquanto a forma da boca aparece; as laterais
   // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
-  if (COARSE) P.tips = [0, .035];
+  /* Passagem arco → borda da boca: só começa depois que as letras sumiram (celular: travel =
+     WORDMARK_TRAVEL, p ≈ .19; desktop: fim de T.wordmarkOut, p ≈ .28), para que as letras e a
+     formação da abertura nunca se sobreponham. É mais lenta que antes (~1 s), mantendo a ordem:
+     as pontas somem, a borda nasce sobre o arco enquanto ele cresce e se dissolve nela, depois
+     desce pelas laterais e afina até o fio de luz. */
+  var ARC_START = COARSE ? .22 : .29;
+  (function (s) {
+    P.tips = [s, s + .05];
+    P.arcGrow = [s - .01, s + .17];
+    P.rim = [s, s + .17];          // a borda acende sobre o arco
+    P.arcMerge = [s, s + .17];     // enquanto o arco se dissolve nela
+    P.rimDown = [s + .12, s + .24]; // e desce pelas laterais até o piso, depois que as pontas sumiram
+    P.rimThin = [s + .14, s + .32]; // a borda nasce com a espessura do arco e afina até o fio de luz
+  })(ARC_START);
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
