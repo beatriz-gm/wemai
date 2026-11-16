@@ -124,7 +124,7 @@
     arcTone: [0, .07],       // o arco passa do azul da marca à luz ciano
     arcGlow: [0, .07],       // e ganha um halo de luz (desenhado no canvas)
     rim: [.05, .1],          // a borda da boca acende sob o arco
-    rimDown: [.05, .1],      // ao mesmo tempo em toda a volta, até o piso
+    rimDown: [.075, .13],    // e desce pelas laterais até o piso, depois que as pontas sumiram
     arcMerge: [.07, .12],    // o arco se dissolve na borda: resta só ela
     // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
     // surgem do branco. Sem porta.
@@ -148,7 +148,9 @@
      somem um pouco mais devagar, para o arco não mudar de forma de repente. */
   var COARSE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   var WORDMARK_TRAVEL = .12;
-  if (COARSE) P.tips = [0, .04];   // as pontas (abaixo do centro) somem assim que a abertura começa a se formar
+  // As pontas (abaixo do centro) somem devagar enquanto a forma da boca aparece; as laterais
+  // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
+  if (COARSE) P.tips = [.03, .085];
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
