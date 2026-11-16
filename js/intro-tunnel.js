@@ -189,7 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -533,13 +533,17 @@
        mesmo antes de as superfícies ganharem cor. Mais fraca descendo para o piso. */
     'vec2 rimLight(vec2 q){',
     '  if(uRim<.001||q.y>FLOOR)return vec2(0.);',
-    '  float fo=uCam/uF;float sv=abs(mouthIn(q));',
+    // Enquanto o arco cresce, a borda acompanha o tamanho dele (escala em torno do centro).
+    '  float sc=uV/max(uArcR,1.);vec2 qs=vec2(q.x*sc,SPRING+(q.y-SPRING)*sc);',
+    '  float fo=uCam/uF;float sv=abs(mouthIn(qs))/sc;',
     '  float k=rimAt(q.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));',
-    '  return vec2(line(sv,1.,fo),exp(-sv/(5.+fo))*.8+exp(-sv/50.)*.15)*k;',
+    // Espessura do fio: no início, a mesma da faixa do arco (que vira a borda); afina depois.
+    '  return vec2(line(sv,1.+3.8*uRimW,fo),exp(-sv/(5.+fo))*.8+exp(-sv/50.)*.15)*k;',
     '}',
     // Aplica borda e halo do arco sobre uma cor sRGB.
-    // O fio puxa para um ciano saturado (lê como luz sobre o branco) e soma brilho (sobre o escuro).
-    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.50,.86,1.),k*.6)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
+    // O fio puxa para o ciano (mais saturado sobre fundo claro, para ler como luz no branco) e soma
+    // brilho (sobre o escuro).
+    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);float lu=dot(c,vec3(.3,.59,.11));vec3 cc=mix(vec3(.50,.86,1.),vec3(.20,.62,.96),smoothstep(.6,.95,lu));return mix(c,cc,k*mix(.6,.9,smoothstep(.6,.95,lu)))+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
@@ -882,7 +886,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1054,6 +1058,7 @@
       gl.uniform1f(u.uArcG, s.arcGlow || 0);
       gl.uniform1f(u.uRim, s.rim || 0);
       gl.uniform1f(u.uRimDown, s.rimDown || 0);
+      gl.uniform1f(u.uRimW, s.rimWide || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);

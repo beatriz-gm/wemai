@@ -117,18 +117,17 @@
     column: [.24, .55],      // e depois abaixo dele, entre as ombreiras
     matter: [.08, .58],      // as superfícies saem do branco e ganham tom e contraste
     tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
-    // Teste "abertura direta": assim que a câmera parte, o arco vai mudando de cor devagar
-    // (azul da marca → luz ciano) enquanto cresce até a boca do túnel, e só termina de mudar
-    // quando encontra a estrutura que surge (matter, a partir de p .08); então se dissolve na
-    // borda acesa da boca, que desce até o piso. Nunca fica um arco sólido sobre o túnel.
-    arcTone: [0, .14],       // o arco passa, devagar, do azul da marca à luz ciano
-    arcGlow: [.03, .14],     // e ganha um halo de luz (desenhado no canvas)
-    rim: [.08, .16],         // a borda da boca acende sob o arco, com o túnel surgindo
-    rimDown: [.1, .18],      // e desce pelas laterais até o piso, depois que as pontas sumiram
-    arcMerge: [.11, .19],    // o arco se dissolve na borda: resta só ela
+    // Teste "abertura direta": assim que a câmera parte, o arco (ainda na cor da logo) já se
+    // transforma na borda acesa da boca do túnel: a borda nasce exatamente sobre ele e os dois
+    // crescem juntos até a boca, enquanto o arco se dissolve nela. O arco não vira um elemento
+    // aceso antes; a mudança de cor é a própria passagem para a borda, que depois desce até o piso.
+    rim: [.01, .12],         // a borda acende sobre o arco
+    arcMerge: [.01, .12],    // enquanto o arco se dissolve nela
     // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
     // surgem do branco. Sem porta.
-    arcGrow: [0, .11],
+    arcGrow: [0, .12],
+    rimDown: [.08, .16],     // e desce pelas laterais até o piso, depois que as pontas sumiram
+    rimThin: [.1, .22],      // a borda nasce com a espessura do arco e afina até o fio de luz
     joints: [.24, .6],
     strips: [.32, .66],
     // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
@@ -318,7 +317,8 @@
         tech: smooth(p, P.techIn) * (1 - smooth(p, P.techOut)),
         build: smooth(p, P.techBuild),
         arcR: ARC_MID_R * arcScale(smooth(p, P.arcGrow)),
-        arcGlow: smooth(p, P.arcGlow) * (1 - smooth(p, P.arcMerge)),
+        arcGlow: 0,
+        rimWide: 1 - smooth(p, P.rimThin),
         rim: smooth(p, P.rim),
         rimDown: smooth(p, P.rimDown),
         p: p,
@@ -341,7 +341,7 @@
       : 1 - easeInOutSine(phase(t, T.wordmarkOut));
     face.style.opacity = scene.tunnel.light.toFixed(4);   // a borda interna do arco ganha luz
     setTips(smooth(p, P.tips));
-    setArcTone(smooth(p, P.arcTone));
+    setArcTone(0);           // o arco mantém a cor da logo até se dissolver na borda
     arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
     setArcGrow(smooth(p, P.arcGrow));
 
