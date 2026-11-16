@@ -231,13 +231,9 @@
     // ondulação do reflexo no piso.
     'const float TILE=330.;const float ALB_DETAIL=.35;const float RELIEF=.7;',
     'const float SHEEN=1.4;const float CAVITY=.5;const float MACRO=.10;const float RIPPLE=40.;',
-    // Painéis de vidro (teste): tamanho das placas (largura no piso e no fundo, comprimento
-    // ao longo do túnel), altura da junta horizontal das paredes e desalinhamento entre placas.
-    'const float PANEL_FX=150.;const float PANEL_Z=220.;const float PANEL_MID=575.;',
-    'const float PANEL_TILT=.06;',
-    // Feixes de luz ciano (teste): cor, força, altura na parede e posição na abóbada (fração de
-    // uW medida no arco a partir do alto).
-    'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_WALL_Y=520.;const float BEAM_VAULT=.55;',
+    // Feixes de luz ciano (teste): cor, força e posição na abóbada (fração de uW medida no
+    // arco a partir do alto).
+    'const vec3 BEAM=vec3(.70,.92,1.);const float BEAM_K=2.2;const float BEAM_BASE=.35;const float BEAM_VAULT=.55;',
     // Pulso nos feixes: espaçamento entre pulsos (ao longo do túnel), velocidade (pulsos por
     // abertura, em relação ao progresso da câmera) e força. O feixe fixo fica em BEAM_BASE da
     // força; o pulso mantém a sua.
@@ -588,22 +584,11 @@
     '  else{N=-normalize(vec3(P.x,P.y-IN_CY,0.));alb=STONE_S;T=vec3(0.,0.,1.);',
     '    uv=vec2(P.z,atan(P.x,-(P.y-IN_CY))*IN_R);}',
     '  alb=lin(alb);',
-    /* Teste "painéis de vidro": no lugar da textura de microcimento, placas grandes de vidro
-       polido sobre o azul, separadas por frestas finas e escuras. Cada placa tem
-       um desalinhamento mínimo (como num revestimento real), então a luz da saída se reflete
-       um pouco diferente em cada uma. sd: distância às juntas (nas duas direções da placa);
-       fpa: tamanho do pixel nessas direções; pid: qual placa. */
+    // Teste "vidro": no lugar da textura de microcimento, vidro polido sobre o azul.
     '  vec3 Nn=N;float rough=.3,cav=1.;',
-    '  vec2 sd=vec2(1e4),pid=vec2(0.),fpa=vec2(fp);',
-    '  if(surf==0.){vec2 g=vec2(PANEL_FX,PANEL_Z);vec2 q=P.xz-vec2(PANEL_FX*.5,0.);pid=floor(q/g);sd=abs(q-g*floor(q/g+.5));fpa=vec2(fp,fp*t/(FLOOR-EYE));rough=.14;}',
-    // Paredes, abóbada e fundo: vidro polido contínuo, sem placas (teste); o piso mantém as placas.
-    '  else if(surf<=3.){rough=.16;}',
-    '  if(surf==0.){',
-    '    float h1=hash(pid+surf*13.1),h2=hash(pid.yx+surf*7.3+3.);',
-    '    vec3 B=cross(N,T);',
-    '    Nn=normalize(N+(T*(h1-.5)+B*(h2-.5))*PANEL_TILT);',
-    '    alb*=.92+.16*h1;rough+=(h2-.5)*.10;',
-    '  }',
+    // Vidro polido contínuo em todas as superfícies, sem placas nem frestas (menos
+    // quadriculado; as únicas linhas no sentido do túnel são uma por lado no piso e na abóbada).
+    '  if(surf==0.)rough=.14;else if(surf<=3.)rough=.16;',
 
     // Luz da paisagem: a abertura dividida em faixas, cada uma com a cor média da foto
     // naquela altura (calculada em JS). No próprio vão (z = 0) a parede do fundo bloqueia
@@ -684,13 +669,6 @@
     '    col+=D*Fs*vis*nl*om*(a*a/(a2*a2))*Lavg*GAIN*SHEEN*cav;',
     '  }',
 
-    // Juntas dos painéis: só a fresta escura e fina, em todas as superfícies (como no piso,
-    // sem luz). Aparecem com as juntas (uJoint).
-    '  if(surf==0.){',
-    '    float inZ=smoothstep(20.,60.,P.z);',
-    '    float gro=max(line(sd.x,.6,fpa.x),line(sd.y,.6,fpa.y));',
-    '    col*=1.-.30*gro*uJoint*inZ;',
-    '  }',
 
     // Frisos: fonte linear junto ao piso e à nascente da abóbada, que ilumina o entorno.
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
@@ -705,12 +683,11 @@
     '  }',
     '  col+=lin(STRIP)*st*inT*uStrip*STRIP_K;',
     /* Feixes de luz ciano (teste): linhas finas de luz ao longo do túnel, em direção à saída
-       (duas na abóbada, uma em cada parede), com um brilho suave em volta. Junto com os frisos,
+       (uma de cada lado da abóbada), com um brilho suave em volta. Junto com os frisos,
        convergem para o fundo e reforçam a profundidade. Mais fracos perto da câmera, onde a
        perspectiva os engrossa. Acendem com os frisos (uStrip). */
     '  float bm=0.;',
-    '  if(surf==1.){float dy=P.y-BEAM_WALL_Y;bm=line(dy,1.2,fp)+exp(-abs(dy)/(10.+fp*2.))*.22;}',
-    '  else if(surf==2.){float da=abs(uv.y)-uW*BEAM_VAULT;bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
+    '  if(surf==2.){float da=abs(uv.y)-uW*BEAM_VAULT;bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
     '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*(.45+.55*smoothstep(150.,900.,t))*(BEAM_BASE+PULSE_K*pulse);',
@@ -721,26 +698,14 @@
     '    col+=lin(STRIP)*exp(-(FLOOR-P.y)/55.)*.34*uStrip*STRIP_K;',
     '  }',
 
-    // Tecnologia na arquitetura: linhas finas no sentido do túnel e marcadores curtos,
-    // gravados na superfície (por isso entram antes do reflexo do piso).
-    '  if(uTech>.001&&P.z>0.){',
-    '    float ln=0.,mk=0.;float fz=fp*t/uW;',
-    '    if(surf==0.){',
-    '      float ax=abs(P.x);fz=fp*t/(FLOOR-EYE);',
-    '      ln=line(ax-JAMB_X,.8,fp)+line(ax-JAMB_X*.5,.6,fp)*.5;',
-    '      mk=grid(P.z,360.,120.,.9,fz)*(1.-smoothstep(9.,13.,abs(ax-JAMB_X)));',
-    '    }else if(surf==1.){',
-    '      ln=line(P.y-470.,.7,fp)+line(P.y-655.,.6,fp)*.5;',
-    '      mk=grid(P.z,360.,300.,.9,fz)*(1.-smoothstep(8.,12.,abs(P.y-470.)));',
-    '    }else if(surf==2.){',
-    '      float as=abs(atan(P.x/uW,-(P.y-SPRING)/uV)*uW);',
-    '      ln=line(as-uW*.62,.7,fp)+line(as-uW*.2,.6,fp)*.5;',
-    '      mk=grid(P.z,360.,300.,.9,fz)*(1.-smoothstep(8.,12.,abs(as-uW*.62)));',
-    '    }',
-    // Mais fracas perto da câmera, onde a perspectiva as engrossa.
+    // Tecnologia na arquitetura: uma única linha fina de cada lado do piso, no sentido do
+    // túnel, alinhada às ombreiras do vão (na abóbada, a linha de cada lado é o feixe de luz).
+    // Gravada na superfície (por isso entra antes do reflexo do piso).
+    '  if(uTech>.001&&P.z>0.&&surf==0.){',
+    '    float ln=line(abs(P.x)-JAMB_X,.8,fp);',
+    // Mais fraca perto da câmera, onde a perspectiva a engrossa.
     '    float nearK=.45+.55*smoothstep(200.,1000.,t);',
-    '    float kl=surf==2.?K_CEIL_LINES:K_LINES;if(surf==2.)mk*=K_CEIL_LINES;',
-    '    col=mix(col,lin(TECH_LINE),min(ln*.20+mk*.30,1.)*kl*nearK*uTech*techReveal(P.z));',
+    '    col=mix(col,lin(TECH_LINE),min(ln*.20,1.)*K_LINES*nearK*uTech*techReveal(P.z));',
     '  }',
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
