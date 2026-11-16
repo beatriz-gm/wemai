@@ -117,17 +117,18 @@
     column: [.24, .55],      // e depois abaixo dele, entre as ombreiras
     matter: [.08, .58],      // as superfícies saem do branco e ganham tom e contraste
     tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
-    // Teste "abertura direta": logo no início o arco se acende (azul da marca → luz ciano),
-    // cresce até encaixar na boca do túnel e forma a borda acesa dela: a borda acende no alto
-    // (onde está o arco), desce pelas laterais até o piso e o arco se funde a ela.
-    arcTone: [.01, .15],     // o arco passa do azul da marca à luz ciano
-    arcGlow: [.01, .15],     // e ganha um halo de luz (desenhado no canvas)
-    rim: [.18, .34],         // a borda da boca acende sob o arco
-    rimDown: [.2, .42],      // e desce pelas laterais até o piso
-    arcMerge: [.3, .46],     // o arco se funde à borda: resta só ela
+    // Teste "abertura direta": assim que a câmera parte, o arco se acende (azul da marca →
+    // luz ciano) e cresce até a boca do túnel; quando o túnel começa a surgir (matter, p .08),
+    // ele já virou a borda acesa da boca, inteira até o piso. Nunca fica um arco sólido sobre
+    // o túnel.
+    arcTone: [0, .07],       // o arco passa do azul da marca à luz ciano
+    arcGlow: [0, .07],       // e ganha um halo de luz (desenhado no canvas)
+    rim: [.05, .1],          // a borda da boca acende sob o arco
+    rimDown: [.05, .1],      // ao mesmo tempo em toda a volta, até o piso
+    arcMerge: [.07, .12],    // o arco se dissolve na borda: resta só ela
     // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
     // surgem do branco. Sem porta.
-    arcGrow: [.04, .2],
+    arcGrow: [0, .08],
     joints: [.24, .6],
     strips: [.32, .66],
     // Tecnologia: quase invisível no início, surge com a formação do túnel, é mais
@@ -147,7 +148,7 @@
      somem um pouco mais devagar, para o arco não mudar de forma de repente. */
   var COARSE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   var WORDMARK_TRAVEL = .12;
-  if (COARSE) P.tips = [.08, .26];
+  if (COARSE) P.tips = [.02, .09];   // o trecho abaixo do centro some antes de o arco virar a borda
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.

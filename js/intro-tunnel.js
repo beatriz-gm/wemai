@@ -267,9 +267,6 @@
     'vec3 glowOn(vec3 c,float h){h=min(h,1.5);return mix(c,RIM_S,min(h,1.)*.5)+RIM_S*h*.3;}',
     // Distância para dentro da boca do túnel (paredes e abóbada), no plano do fundo.
     'float mouthIn(vec2 q){return q.y>SPRING?uW-abs(q.x):(1.-length(vec2(q.x/uW,(q.y-SPRING)/uV)))*min(uW,uV);}',
-    // Brilho da borda da boca sobre a paisagem (sRGB, aditivo), sumindo junto à água.
-    'vec3 mouthGlow(vec2 q){float sv=max(mouthIn(q),0.);float fo=uCam/uF;if(uRim<.001)return vec3(0.);',
-    '  return vec3(.55,.88,1.)*(exp(-sv/(5.+fo))*.6+exp(-sv/45.)*.12)*RIM_OPEN*rimAt(q.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -530,6 +527,18 @@
   ].join('\n');
 
   var SHADER_BODY = [
+    /* Borda da boca do túnel, no plano do fundo (q): (fio, halo). Vale em qualquer pixel (névoa
+       branca do início, paredes, paisagem), por isso a borda existe desde que o túnel se forma,
+       mesmo antes de as superfícies ganharem cor. Mais fraca descendo para o piso. */
+    'vec2 rimLight(vec2 q){',
+    '  if(uRim<.001||q.y>FLOOR)return vec2(0.);',
+    '  float fo=uCam/uF;float sv=abs(mouthIn(q));',
+    '  float k=rimAt(q.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));',
+    '  return vec2(line(sv,1.,fo),exp(-sv/(5.+fo))*.8+exp(-sv/50.)*.15)*k;',
+    '}',
+    // Aplica borda e halo do arco sobre uma cor sRGB.
+    // O fio puxa para um ciano saturado (lê como luz sobre o branco) e soma brilho (sobre o escuro).
+    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.30,.76,1.),k*.75)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
@@ -568,16 +577,19 @@
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
     // Brilho da borda da boca do túnel espalhado sobre a paisagem.
-    '    vec3 gw=mouthGlow(q);float ah=arcHalo(q);',
+    '    vec2 rl=rimLight(q);float ah=arcHalo(q);',
     // Halo do arco: sobre a névoa branca, puxa para o ciano; sobre a paisagem, soma luz.
-    '    vec3 hz=a>.001?glowOn(haze,ah):haze;',
-    '    gl_FragColor=vec4(hz*a+gw+RIM_S*ah*.45*(1.-a),a)*uAlpha;return;',
+    // Sobre a névoa branca, a luz puxa para o ciano; sobre a paisagem, soma.
+    '    vec3 hz=a>.001?rimOn(haze,rl,ah):haze;',
+    '    vec3 gw=(RIM_S*(rl.y*RIM_OPEN+ah*.45)+vec3(.85,.97,1.)*rl.x*RIM_K*.3)*(1.-a);',
+    '    gl_FragColor=vec4(hz*a+gw,a)*uAlpha;return;',
     '  }',
     // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
     '  if(uMat<.001){',
     '    float h0=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
     '    vec3 w0=mix(vec3(1.),HALO,uLight*h0*.45);',
-    '    if(uArcG>.001)w0=glowOn(w0,arcHalo(vec2(uCam*d.x,EYE+uCam*d.y)));',
+    '    vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);',
+    '    w0=rimOn(w0,rimLight(q0),uArcG>.001?arcHalo(q0):0.);',
     '    gl_FragColor=vec4(w0,1.)*uAlpha;return;',
     '  }',
 
@@ -731,14 +743,6 @@
     '    float rim=line(sdv-44.,.8,fp)*.55+exp(-abs(sdv-44.)/10.)*.14+exp(-max(de,0.)/12.)*.20;',
     '    col+=lin(TECH_LIGHT)*rim*K_RIM*uTech*techReveal(0.);',
     '  }',
-    /* Abertura final direta (teste): o fim das paredes e da abóbada (z = 0) é a borda da
-       boca do túnel, acesa como um fio de luz quase branco com halo ciano, que também ilumina
-       a superfície junto a ela. Mais fraca descendo para o piso. */
-    '  float rimC=0.,rimH=0.;',
-    '  if(uRim>.001&&(surf==1.||surf==2.)&&P.z<120.){',
-    '    float fzm=fp*t/uW;float gq=rimAt(P.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,P.y));',
-    '    rimC=line(P.z,.9,fzm)*gq;rimH=(exp(-max(P.z,0.)/(5.+fzm))*.8+exp(-max(P.z,0.)/50.)*.15)*gq;',
-    '  }',
 
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
     '  float alpha=1.;float frT=0.;',
@@ -825,8 +829,7 @@
     '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
     '  col=mix(white,col,uMat);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
-    '  if(rimC+rimH>0.)col=glowOn(col,rimH*RIM_HALO)+vec3(.85,.97,1.)*rimC*RIM_K*.3;',
-    '  if(uArcG>.001)col=glowOn(col,arcHalo(vec2(uCam*d.x,EYE+uCam*d.y)));',
+    '  {vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);col=rimOn(col,rimLight(q0),uArcG>.001?arcHalo(q0):0.);}',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
     '}'
   ].join('\n');
