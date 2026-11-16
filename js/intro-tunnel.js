@@ -243,14 +243,17 @@
     // força; o pulso mantém a sua.
     'const float PULSE_GAP=900.;const float PULSE_SPEED=6.;const float PULSE_K=1.6;',
     // Estrutura tecnológica (teste, references/Storyboard WEMAI_ Da Ideia ao Horizonte.png):
-    // nervuras de vidro com o perfil do túnel (paredes + abóbada), em planos igualmente
-    // espaçados. Primeiro plano (a partir da parede do fundo), passo, quantas o shader
-    // percorre, largura da moldura (para dentro do perfil), cor da luz, cor do vidro, força
-    // da luz e do vidro. Ficam fora do cone de visão do vão: nunca cobrem a paisagem.
+    // camadas de luz com o perfil do túnel (paredes + abóbada), em planos igualmente
+    // espaçados: linhas finas, como tubos de luz ciano junto à superfície. Primeiro plano (a
+    // partir da parede do fundo), passo, quantas o shader percorre, afastamento da superfície,
+    // meia-espessura do tubo, cor do halo (ciano), cor do núcleo (quase branco, saturado de
+    // luz), força do núcleo, do halo e da luz que a linha lança na parede, abóbada e piso.
+    // Ficam fora do cone de visão do vão: nunca cobrem a paisagem.
     'const float RIB_Z0=160.;const float RIB_S=210.;',
     '#define RIB_N 11',
-    'const float RIB_W=14.;const vec3 RIB_C=vec3(.78,.92,1.);const vec3 RIB_GLASS=vec3(.86,.94,1.);',
-    'const float RIB_K=1.6;const float RIB_FILL=.22;',
+    'const float RIB_W=5.;const float RIB_HW=.7;',
+    'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
+    'const float RIB_K=1.5;const float RIB_HALO=.55;const float RIB_SPILL=.30;',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -768,27 +771,30 @@
     '    }',
     '  }',
 
-    /* Nervuras de vidro (teste): molduras finas com o perfil do túnel, em planos ao longo
-       dele, que a câmera atravessa. Cada uma: vidro translúcido, borda interna de luz, traço
-       junto à superfície e brilho suave; refletida no piso polido. Nascem do vão em direção à
-       câmera (como a tecnologia, uBuild) e acendem com os frisos (uStrip). Entram antes das
-       telas, que ficam à frente delas. */
+    /* Camadas de luz (teste): linhas finas com o perfil do túnel, em planos ao longo dele, que
+       a câmera atravessa. Cada uma se comporta como um tubo de luz real: núcleo fino quase
+       branco, halo ciano que cai rápido (com uma cauda larga e fraca) e luz ciano lançada na
+       superfície junto a ela (parede, abóbada e piso); refletida no piso polido. Nascem do vão
+       em direção à câmera (como a tecnologia, uBuild) e acendem com os frisos (uStrip). Entram
+       antes das telas, que ficam à frente delas. */
     '  if(uStrip>.001){',
-    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rf=0.,rl=0.;float fr0=uBuild*(LEN+320.);',
+    '    float nr=floor((uCam-RIB_Z0)/RIB_S);float rc=0.,rh=0.;float fr0=uBuild*(LEN+320.);',
     '    for(int k=0;k<RIB_N;k++){',
     '      float zr=RIB_Z0+(nr-float(k))*RIB_S;if(zr<RIB_Z0-1.)break;',
-    '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=1.;',
-    '      if(tl>=t){if(surf!=0.)continue;y=2.*FLOOR-y;wk=frT*.9*exp(-max(t-500.,0.)/900.);}',
+    '      float on=1.-smoothstep(fr0-260.,fr0,zr);',
+    // Luz lançada na superfície junto à linha (cai com a distância ao plano dela).
+    '      if(surf<=2.&&P.z>0.){float dw=surf==0.?uW-abs(P.x):0.;',
+    '        rh+=exp(-length(vec2(P.z-zr,dw))/38.)*RIB_SPILL*on;}',
+    '      float tl=uCam-zr;float y=EYE+tl*d.y;float wk=on;',
+    '      if(tl>=t){if(surf!=0.)continue;y=2.*FLOOR-y;wk*=frT*.9*exp(-max(t-500.,0.)/900.);}',
     '      float x=tl*d.x;float fl=tl/uF;',
     '      float sr=y>SPRING?uW-abs(x):(1.-length(vec2(x/uW,(y-SPRING)/uV)))*min(uW,uV);',
-    '      wk*=(1.-smoothstep(fr0-260.,fr0,zr))*smoothstep(30.,240.,tl)*(1.-smoothstep(FLOOR-4.,FLOOR,y));',
-    '      rf=max(rf,smoothstep(-fl,fl,sr)*(1.-smoothstep(RIB_W-fl,RIB_W+fl,sr))*wk);',
-    '      rl+=(line(sr-RIB_W,.9,fl)+line(sr-1.5,.6,fl)*.45+exp(-abs(sr-RIB_W)/(10.+fl*2.))*.24)*wk;',
-    // Pé da nervura: uma poça de luz no piso, junto à parede.
-    '      if(surf==0.)rl+=exp(-length(vec2(P.z-zr,uW-abs(P.x)))/26.)*.5*(1.-smoothstep(fr0-260.,fr0,zr));',
+    '      wk*=smoothstep(30.,240.,tl)*(1.-smoothstep(FLOOR-4.,FLOOR,y));',
+    '      float dl=abs(sr-RIB_W);',
+    '      rc+=line(dl,RIB_HW,fl)*wk;',
+    '      rh+=(exp(-dl/(3.+fl))*RIB_HALO+exp(-dl/(26.+fl*3.))*.07)*wk;',
     '    }',
-    '    col=mix(col,lin(RIB_GLASS),rf*RIB_FILL*uStrip);',
-    '    col+=lin(RIB_C)*rl*RIB_K*uStrip;',
+    '    col+=(lin(RIB_CORE)*rc*RIB_K+lin(RIB_C)*rh)*uStrip;',
     '  }',
 
     // Telas à frente da superfície; no piso, o reflexo delicado delas.
