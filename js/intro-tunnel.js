@@ -259,7 +259,7 @@
     // A borda acende sob o arco (uRim) e desce pelas laterais até o piso (uRimDown).
     'float rimAt(float y){float yl=SPRING-20.+(FLOOR+60.-SPRING)*uRimDown;return uRim*(1.-smoothstep(yl-70.,yl,y));}',
     // Luz ciano da borda e do arco, para misturar em sRGB (lê como luz também sobre o branco).
-    'const vec3 RIM_S=vec3(.42,.82,1.);',
+    'const vec3 RIM_S=vec3(.62,.90,1.);',
     // Halo do arco da logo aceso (no plano do fundo): raio médio do arco neste instante.
     'float arcHalo(vec2 q){float fo=uCam/uF;float dd=q.y<=ARC_CY?abs(length(vec2(q.x,q.y-ARC_CY))-uArcR):length(vec2(abs(q.x)-uArcR,q.y-ARC_CY));',
     '  return (exp(-dd/(4.+fo))*.55+exp(-dd/40.)*.18)*uArcG;}',
@@ -538,7 +538,7 @@
     '}',
     // Aplica borda e halo do arco sobre uma cor sRGB.
     // O fio puxa para um ciano saturado (lê como luz sobre o branco) e soma brilho (sobre o escuro).
-    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.30,.76,1.),k*.75)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
+    'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);return mix(c,vec3(.50,.86,1.),k*.75)+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',

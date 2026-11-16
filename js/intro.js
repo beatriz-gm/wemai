@@ -150,7 +150,7 @@
   var WORDMARK_TRAVEL = .12;
   // As pontas (abaixo do centro) somem devagar enquanto a forma da boca aparece; as laterais
   // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
-  if (COARSE) P.tips = [.01, .06];
+  if (COARSE) P.tips = [0, .035];
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
@@ -158,7 +158,7 @@
   var ARC_NAVY = { fill: '#0B1F33', face: ['#7FA2C4', '#3D6389', '#0B1F33'] };
   // Teste "abertura direta": o arco vira luz ciano, a mesma da borda da boca do túnel, em que
   // se transforma (antes, azul do túnel: #5B86C2; antes ainda, pedra clara: #D6C9B7).
-  var ARC_STONE = { fill: '#5CCBFF', face: ['#EAF9FF', '#94DEFF', '#3DB8F2'] };
+  var ARC_STONE = { fill: '#9EE3FF', face: ['#F7FDFF', '#C6F0FF', '#82D8FF'] };
   // Centro do arco (= centro da abóbada) e raio médio da faixa do arco, para o crescimento.
   var ARC_CY = 346.5, ARC_MID_R = (OUTER_R + 252) / 2;
 
