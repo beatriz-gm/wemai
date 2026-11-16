@@ -117,11 +117,16 @@
     column: [.24, .55],      // e depois abaixo dele, entre as ombreiras
     matter: [.08, .58],      // as superfícies saem do branco e ganham tom e contraste
     tips: [.08, .2],         // as pontas do arco sobre o vão somem assim que as paredes começam a surgir
-    arcTone: [.26, .5],      // o arco passa do azul da marca ao tom de pedra iluminada do túnel
-    arcMerge: [.5, .7],      // e então se funde ao portal: resta só o contorno da abertura
-    // Teste "abertura direta": o arco é a margem da boca do túnel. Ele cresce até ela logo
-    // no início, enquanto as paredes surgem do branco; depois fica sobre ela e, mais adiante,
-    // se funde à borda acesa (rimIn em js/intro-tunnel.js). Sem porta.
+    // Teste "abertura direta": logo no início o arco se acende (azul da marca → luz ciano),
+    // cresce até encaixar na boca do túnel e forma a borda acesa dela: a borda acende no alto
+    // (onde está o arco), desce pelas laterais até o piso e o arco se funde a ela.
+    arcTone: [.01, .15],     // o arco passa do azul da marca à luz ciano
+    arcGlow: [.01, .15],     // e ganha um halo de luz (desenhado no canvas)
+    rim: [.18, .34],         // a borda da boca acende sob o arco
+    rimDown: [.2, .42],      // e desce pelas laterais até o piso
+    arcMerge: [.3, .46],     // o arco se funde à borda: resta só ela
+    // O arco é a margem da boca do túnel: cresce até ela logo no início, enquanto as paredes
+    // surgem do branco. Sem porta.
     arcGrow: [.04, .2],
     joints: [.24, .6],
     strips: [.32, .66],
@@ -150,7 +155,7 @@
   var ARC_NAVY = { fill: '#0B1F33', face: ['#7FA2C4', '#3D6389', '#0B1F33'] };
   // Teste "abertura direta": o arco vira luz ciano, a mesma da borda da boca do túnel, em que
   // se transforma (antes, azul do túnel: #5B86C2; antes ainda, pedra clara: #D6C9B7).
-  var ARC_STONE = { fill: '#7FD4FF', face: ['#F2FBFF', '#A8E4FF', '#5CC4F5'] };
+  var ARC_STONE = { fill: '#5CCBFF', face: ['#EAF9FF', '#94DEFF', '#3DB8F2'] };
   // Centro do arco (= centro da abóbada) e raio médio da faixa do arco, para o crescimento.
   var ARC_CY = 346.5, ARC_MID_R = (OUTER_R + 252) / 2;
 
@@ -309,6 +314,10 @@
         strips: smooth(p, P.strips),
         tech: smooth(p, P.techIn) * (1 - smooth(p, P.techOut)),
         build: smooth(p, P.techBuild),
+        arcR: ARC_MID_R * arcScale(smooth(p, P.arcGrow)),
+        arcGlow: smooth(p, P.arcGlow) * (1 - smooth(p, P.arcMerge)),
+        rim: smooth(p, P.rim),
+        rimDown: smooth(p, P.rimDown),
         p: p,
         alpha: 1 - smooth(p, P.fade)
       }
@@ -352,9 +361,10 @@
 
   /* O arco cresce, a partir do próprio centro, até a faixa coincidir com a borda da boca do
      túnel (altura da abóbada: o alto do arco fica sobre o alto da boca). Só uma escala no grupo: o path da logo não muda. */
+  function arcScale(g) { return 1 + (view.vaultRise / ARC_MID_R - 1) * g; }
   function setArcGrow(g) {
     if (!g) { arc.removeAttribute('transform'); return; }
-    var s = 1 + (view.vaultRise / ARC_MID_R - 1) * g;
+    var s = arcScale(g);
     arc.setAttribute('transform', 'translate(' + ARC_X + ' ' + ARC_CY + ') scale(' + s.toFixed(5) + ') translate(' + (-ARC_X) + ' ' + (-ARC_CY) + ')');
   }
 

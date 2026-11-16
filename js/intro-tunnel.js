@@ -189,6 +189,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
+      'uniform float uArcR,uArcG,uRim,uRimDown;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -255,13 +256,20 @@
     // dentro dela é abertura; o arco da logo passa direto para a borda da boca, um fio de luz
     // quase branco com halo ciano. Força do fio, do halo e do brilho sobre a paisagem.
     'const float RIM_K=3.4;const float RIM_HALO=1.1;const float RIM_OPEN=.85;',
-    // A borda acende enquanto o arco da logo se funde a ela (arcMerge: p .5 a .7).
-    'float rimIn(){return smoothstep(.42,.66,uProg)*uStrip;}',
+    // A borda acende sob o arco (uRim) e desce pelas laterais até o piso (uRimDown).
+    'float rimAt(float y){float yl=SPRING-20.+(FLOOR+60.-SPRING)*uRimDown;return uRim*(1.-smoothstep(yl-70.,yl,y));}',
+    // Luz ciano da borda e do arco, para misturar em sRGB (lê como luz também sobre o branco).
+    'const vec3 RIM_S=vec3(.42,.82,1.);',
+    // Halo do arco da logo aceso (no plano do fundo): raio médio do arco neste instante.
+    'float arcHalo(vec2 q){float fo=uCam/uF;float dd=q.y<=ARC_CY?abs(length(vec2(q.x,q.y-ARC_CY))-uArcR):length(vec2(abs(q.x)-uArcR,q.y-ARC_CY));',
+    '  return (exp(-dd/(4.+fo))*.55+exp(-dd/40.)*.18)*uArcG;}',
+    // Luz sobre a cor final (sRGB): puxa para o ciano e soma brilho; vale sobre branco e escuro.
+    'vec3 glowOn(vec3 c,float h){h=min(h,1.5);return mix(c,RIM_S,min(h,1.)*.5)+RIM_S*h*.3;}',
     // Distância para dentro da boca do túnel (paredes e abóbada), no plano do fundo.
     'float mouthIn(vec2 q){return q.y>SPRING?uW-abs(q.x):(1.-length(vec2(q.x/uW,(q.y-SPRING)/uV)))*min(uW,uV);}',
     // Brilho da borda da boca sobre a paisagem (sRGB, aditivo), sumindo junto à água.
-    'vec3 mouthGlow(vec2 q){float sv=max(mouthIn(q),0.);float fo=uCam/uF;',
-    '  return vec3(.55,.88,1.)*(exp(-sv/(5.+fo))*.6+exp(-sv/45.)*.12)*RIM_OPEN*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
+    'vec3 mouthGlow(vec2 q){float sv=max(mouthIn(q),0.);float fo=uCam/uF;if(uRim<.001)return vec3(0.);',
+    '  return vec3(.55,.88,1.)*(exp(-sv/(5.+fo))*.6+exp(-sv/45.)*.12)*RIM_OPEN*rimAt(q.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,q.y));}',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -560,13 +568,17 @@
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
     // Brilho da borda da boca do túnel espalhado sobre a paisagem.
-    '    float gq=rimIn();vec3 gw=gq>.001?mouthGlow(q)*gq:vec3(0.);',
-    '    gl_FragColor=vec4(haze*a+gw,a)*uAlpha;return;',
+    '    vec3 gw=mouthGlow(q);float ah=arcHalo(q);',
+    // Halo do arco: sobre a névoa branca, puxa para o ciano; sobre a paisagem, soma luz.
+    '    vec3 hz=a>.001?glowOn(haze,ah):haze;',
+    '    gl_FragColor=vec4(hz*a+gw+RIM_S*ah*.45*(1.-a),a)*uAlpha;return;',
     '  }',
     // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
     '  if(uMat<.001){',
     '    float h0=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
-    '    gl_FragColor=vec4(mix(vec3(1.),HALO,uLight*h0*.45),1.)*uAlpha;return;',
+    '    vec3 w0=mix(vec3(1.),HALO,uLight*h0*.45);',
+    '    if(uArcG>.001)w0=glowOn(w0,arcHalo(vec2(uCam*d.x,EYE+uCam*d.y)));',
+    '    gl_FragColor=vec4(w0,1.)*uAlpha;return;',
     '  }',
 
     // Superfície: normal, albedo (linear) e base tangente para o relevo.
@@ -722,10 +734,10 @@
     /* Abertura final direta (teste): o fim das paredes e da abóbada (z = 0) é a borda da
        boca do túnel, acesa como um fio de luz quase branco com halo ciano, que também ilumina
        a superfície junto a ela. Mais fraca descendo para o piso. */
-    '  float gq=rimIn();',
-    '  if(gq>.001&&(surf==1.||surf==2.)&&P.z<120.){',
-    '    float fzm=fp*t/uW;float fl=1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,P.y);',
-    '    col+=(lin(RIB_CORE)*line(P.z,.9,fzm)*RIM_K+lin(RIB_C)*(exp(-max(P.z,0.)/(5.+fzm))*RIM_HALO+exp(-max(P.z,0.)/50.)*.2))*fl*gq;',
+    '  float rimC=0.,rimH=0.;',
+    '  if(uRim>.001&&(surf==1.||surf==2.)&&P.z<120.){',
+    '    float fzm=fp*t/uW;float gq=rimAt(P.y)*(1.-.7*smoothstep(FLOOR-200.,FLOOR-20.,P.y));',
+    '    rimC=line(P.z,.9,fzm)*gq;rimH=(exp(-max(P.z,0.)/(5.+fzm))*.8+exp(-max(P.z,0.)/50.)*.15)*gq;',
     '  }',
 
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
@@ -812,6 +824,9 @@
     // Exposição: tudo começa branco e ganha tom e contraste progressivamente.
     '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
     '  col=mix(white,col,uMat);',
+    // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
+    '  if(rimC+rimH>0.)col=glowOn(col,rimH*RIM_HALO)+vec3(.85,.97,1.)*rimC*RIM_K*.3;',
+    '  if(uArcG>.001)col=glowOn(col,arcHalo(vec2(uCam*d.x,EYE+uCam*d.y)));',
     '  gl_FragColor=vec4(col*alpha,alpha)*uAlpha;',
     '}'
   ].join('\n');
@@ -872,6 +887,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1039,6 +1055,10 @@
       gl.uniform1f(u.uTech, s.tech);
       gl.uniform1f(u.uBuild, s.build);
       gl.uniform1f(u.uProg, s.p);
+      gl.uniform1f(u.uArcR, s.arcR || 256.75);
+      gl.uniform1f(u.uArcG, s.arcGlow || 0);
+      gl.uniform1f(u.uRim, s.rim || 0);
+      gl.uniform1f(u.uRimDown, s.rimDown || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
