@@ -254,6 +254,16 @@
     'const float RIB_W=5.;const float RIB_HW=.7;',
     'const vec3 RIB_C=vec3(.30,.82,1.);const vec3 RIB_CORE=vec3(.82,.97,1.);',
     'const float RIB_K=1.5;const float RIB_HALO=.55;const float RIB_SPILL=.30;',
+    // Abertura final em vidro (teste): parede do fundo e espessura do vão como vidro fosco
+    // azulado (a luz da paisagem atravessa, desfocada), com a borda do vão acesa em luz ciano,
+    // como na referência. Tom do vidro, quanto ele substitui a superfície, quanto da luz de
+    // trás atravessa, força da borda acesa e do brilho que ela espalha sobre a paisagem.
+    'const vec3 GLASS_TINT=vec3(.55,.76,1.);const float GLASS_K=.8;const float GLASS_TR=.55;',
+    'const float RIM_K=2.;const float RIM_OPEN=.5;',
+    // Ganho da abertura final: só depois que o arco da logo se fundiu ao vão (arcMerge).
+    'float glassIn(){return smoothstep(.5,.72,uProg)*uStrip;}',
+    // Distância à borda do vão só pelo arco e pelas ombreiras (sem a base: nada fecha o vão).
+    'float rimSd(vec2 q){return q.y<JAMB_Y?length(vec2(q.x,q.y-IN_CY))-IN_R:abs(q.x)-JAMB_X;}',
 
     'vec3 lin(vec3 c){return c*c*(.31+.69*c);}',            // sRGB → linear (aprox.)
     'vec3 enc(vec3 c){return pow(max(c,0.),vec3(1./2.2));}',
@@ -556,7 +566,11 @@
     '    float clear=max(uArch*(1.-smoothstep(.45+.75*uArch,1.12+.75*uArch,r)),uCol);',
     '    float a=1.-clear;',
     '    vec3 haze=mix(vec3(1.),HALO,uLight*(1.-smoothstep(.2,1.,r))*.6);',
-    '    gl_FragColor=vec4(haze*a,a)*uAlpha;return;',
+    // Brilho da borda acesa espalhado sobre a paisagem (aditivo), sumindo junto à água.
+    '    float gq=glassIn();vec3 gw=vec3(0.);',
+    '    if(gq>.001){float sv=min(rimSd(q),0.);float fo=uCam/uF;',
+    '      gw=vec3(.55,.88,1.)*(exp(sv/(5.+fo))*.5+exp(sv/45.)*.10)*RIM_OPEN*gq*(1.-smoothstep(FLOOR-160.,FLOOR-20.,q.y));}',
+    '    gl_FragColor=vec4(haze*a+gw,a)*uAlpha;return;',
     '  }',
     // Ainda totalmente exposto (branco): só o halo da primeira luz, sem calcular luz e material.
     '  if(uMat<.001){',
@@ -744,6 +758,32 @@
     '    if(P.y<SPRING)de=min(de,(1.-length(vec2(P.x/uW,(P.y-SPRING)/uV)))*min(uW,uV));',
     '    float rim=line(sdv-44.,.8,fp)*.55+exp(-abs(sdv-44.)/10.)*.14+exp(-max(de,0.)/12.)*.20;',
     '    col+=lin(TECH_LIGHT)*rim*K_RIM*uTech*techReveal(0.);',
+    '  }',
+    /* Abertura final em vidro (teste): a parede do fundo e a espessura do vão viram vidro
+       fosco azulado, por onde passa, desfocada, a luz da paisagem que está atrás (a própria
+       foto, amostrada em volta do pixel); a borda do vão é um fio de luz quase branco com halo
+       ciano, e o encontro com o túnel, um fio ciano mais discreto. Na espessura, as duas
+       arestas do vidro pegam luz. */
+    '  float gq=glassIn();',
+    '  if(gq>.001&&(surf==3.||surf==5.||surf==6.)){',
+    '    vec3 tr=(photo(px)+photo(px+vec2(22.,8.))+photo(px-vec2(22.,8.))+photo(px+vec2(-8.,22.))+photo(px-vec2(-8.,22.)))*.2;',
+    '    vec3 gc=col*.20*lin(GLASS_TINT)/lin(STONE_S)+tr*lin(GLASS_TINT)*GAIN*GLASS_TR;',
+    // Reflexo do vidro: uma faixa diagonal larga e suave que desliza devagar com a câmera.
+    '    gc+=lin(TECH_GLASS)*exp(-abs(P.x*.55+P.y-260.-uCam*.25)/55.)*.07;',
+    '    col=mix(col,gc,GLASS_K*gq);',
+    '    if(surf==3.){',
+    '      float sv=max(rimSd(P.xy),0.);float fl=1.-smoothstep(FLOOR-160.,FLOOR-20.,P.y);',
+    '      float de=min(uW-abs(P.x),FLOOR-P.y);',
+    '      if(P.y<SPRING)de=min(de,(1.-length(vec2(P.x/uW,(P.y-SPRING)/uV)))*min(uW,uV));',
+    '      col+=(lin(RIB_CORE)*line(sv-1.,.9,fp)*RIM_K+lin(RIB_C)*(exp(-sv/(4.+fp))*.7+exp(-sv/70.)*.14))*fl*gq;',
+    // Encontro com o túnel: a outra aresta da placa de vidro, também acesa.
+    '      col+=(lin(RIB_CORE)*line(de-2.,.7,fp)*1.1+lin(RIB_C)*exp(-max(de,0.)/(5.+fp))*.35)*gq;',
+    // Fresnel: o vidro fica mais claro junto às duas arestas e mais transparente no meio.
+    '      col+=lin(GLASS_TINT)*Lavg*GAIN*.10*(exp(-sv/18.)+exp(-max(de,0.)/18.))*gq;',
+    '    }else{',
+    '      float fzr=fp*t/IN_R;',
+    '      col+=(lin(RIB_CORE)*(line(P.z,.8,fzr)*RIM_K+line(P.z+REVEAL,.8,fzr)*.5)+lin(RIB_C)*exp(-abs(P.z)/6.)*.6)*gq;',
+    '    }',
     '  }',
 
     // Piso polido: reflexo da foto pelo vão, com Fresnel.
