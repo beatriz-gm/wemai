@@ -961,12 +961,12 @@
     '    float yr=2.*FLOOR-(EYE+uCam*d.y);vec2 qr=vec2(uCam*d.x,yr);',
     // Paredes de vidro (uWallG): reflexo mais natural, com contorno que se desfaz cada vez mais
     // longe da saída e força que cai aos poucos em direção à câmera (sem fim marcado).
-    '    float blur=mix(8.+dz*.08,14.+dz*.24,uWallG);',
+    '    float blur=mix(8.+dz*.08,20.+dz*.36,uWallG);',
     '    float m=1.-smoothstep(-blur,blur,max(-mouthIn(qr),qr.y-FLOOR));',
-    '    m*=mix(1.,.85-.6*smoothstep(0.,1500.,dz),uWallG);',
+    '    m*=mix(1.,.7-.58*smoothstep(0.,1200.,dz),uWallG);',
     // Reflexo alongado na vertical (como na água e na pedra polida): 5 amostras. O relevo
     // do piso o ondula levemente (pedra polida, não espelho).
-    '    vec2 sr=toScreen(qr)+vec2(Nn.x,Nn.z)*RIPPLE;float sy=mix(4.+dz*.035,6.+dz*.07,uWallG);',
+    '    vec2 sr=toScreen(qr)+vec2(Nn.x,Nn.z)*RIPPLE;float sy=mix(4.+dz*.035,8.+dz*.09,uWallG);',
     '    vec3 rc=photo(sr)*.28+(photo(sr+vec2(0.,sy))+photo(sr-vec2(0.,sy)))*.22+(photo(sr+vec2(0.,2.*sy))+photo(sr-vec2(0.,2.*sy)))*.14;',
     '    rc*=GAIN*REFL;',
     '    col=mix(col,mix(col,rc,m),fr*.85*uCol);',   // fora do vão: o próprio túnel refletido
