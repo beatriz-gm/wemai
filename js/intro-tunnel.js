@@ -219,7 +219,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault,uWallG;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault,uWallG,uArcB,uArcT,uTips;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -1114,15 +1114,33 @@
     '    if(uWallG>.5){',
     // Para dentro (em direção à saída) a matéria avança mais rápido, para o fundo não ficar
     // branco como o vão de uma moldura.
-    // Nasce na curva da abóbada (onde o arco está) e só depois desce pelas paredes até o piso,
-    // como o arco se prolongando, sem formar o contorno de uma porta.
+    // Nasce na faixa do próprio arco (no plano da entrada, onde ele está) e se espalha a partir
+    // dela: pela imagem (distância à faixa, mais devagar descendo pelas laterais) e em
+    // profundidade (mais rápido para dentro). Sem contorno de porta, sem borda dura.
+    '      float de=max(uCam-ENTRY,1.);vec2 qa=vec2(de*d.x,EYE+de*d.y);',
+    '      float dB=abs(length(vec2(qa.x,(qa.y-ARC_CY)*(qa.y<ARC_CY?1.:.75)))-uArcR);',
     '      float ze=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
-    '      float dg=.62*smoothstep(0.,2400.,ze)+.25*smoothstep(0.,700.,ze)+.16;',
-    '      dg+=.28*smoothstep(SPRING-40.,FLOOR,P.y);',
+    '      float dg=.5*smoothstep(0.,1100.,dB)+.35*smoothstep(0.,2400.,ze)+.06;',
     '      mL=clamp(uMat*2.3-dg,0.,1.);',
     '    }',
     '  }',
+    '  vec3 matC=col;',
     '  col=mix(white,col,mL);',
+    /* Experimento vidro: o arco da logo passa a ser desenhado aqui, como parte do túnel, com a
+       mesma forma (os dois círculos do SVG, crescendo com uArcR) e a mesma cor; o SVG some no
+       mesmo instante (troca invisível). Daí a faixa já é matéria do túnel: a cor vai do azul da
+       marca à do túnel naquele ponto (uArcT) e a borda se abre, enquanto o túnel cresce dela.
+       As pontas (abaixo do centro) se dissolvem com uTips. */
+    '  if(uArcB>.001){',
+    '    float de=max(uCam-ENTRY,1.);vec2 qa=vec2(de*d.x,EYE+de*d.y);',
+    '    float sa=uArcR/256.75;vec2 qs=vec2(qa.x/sa,ARC_CY+(qa.y-ARC_CY)/sa);',
+    '    float fa=de/uF/sa;float sw=fa*(.7+10.*uArcT*uArcT);',
+    '    float ma=smoothstep(-sw,sw,ARC_R-length(qs-vec2(0.,ARC_CY)))*smoothstep(-sw,sw,length(qs-vec2(0.,IN_CY))-IN_R)*smoothstep(-sw,sw,494.63-qs.y);',
+    '    ma*=1.-uTips*smoothstep(ARC_CY-20.,ARC_CY+40.,qs.y);',
+    // A cor da faixa vai para a do túnel exatamente como ele está ali neste instante: ao fim,
+    // ela é o próprio túnel (não fica mais escura que o entorno).
+    '    col=mix(col,mix(vec3(.043,.122,.2),col,uArcT),ma*uArcB);',
+    '  }',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
     '  {vec2 q0=vec2(uCam*d.x,EYE+uCam*d.y);col=rimOn(col,rims(d),uArcG>.001?arcHalo(q0):0.);}',
@@ -1187,7 +1205,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault', 'uWallG',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault', 'uWallG', 'uArcB', 'uArcT', 'uTips',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1370,6 +1388,9 @@
       gl.uniform1f(u.uStruct, s.struct || 0);
       gl.uniform1f(u.uVault, s.vault || 0);
       gl.uniform1f(u.uWallG, s.wallGlass || 0);
+      gl.uniform1f(u.uArcB, s.arcBand || 0);
+      gl.uniform1f(u.uArcT, s.arcTint || 0);
+      gl.uniform1f(u.uTips, s.tips || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState, s.wallGlass > .5);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);

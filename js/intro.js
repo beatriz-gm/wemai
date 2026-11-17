@@ -163,14 +163,19 @@
     // dele (arcGrow) e ele se funde na borda delas enquanto aparecem.
     // O arco escurece para o azul das paredes e se dissolve nelas enquanto ganham tom; a borda
     // acesa da boca só aparece depois, já sobre as paredes (não desenha uma porta no branco).
-    P.tips = [.02, .16];
+    // Arco integrado: assim que a câmera parte, o arco passa a ser desenhado pelo túnel (mesma
+    // forma e cor) e o SVG some no mesmo instante; a faixa vira matéria do túnel (P_ARC_TINT)
+    // enquanto o túnel cresce a partir dela. As pontas se dissolvem no próprio túnel (P.tips).
+    P.tips = [.01, .1];
     P.rim = [.14, .34];
-    P.arcMerge = [.03, .15];
+    P.arcMerge = [.004, .03];
     P.rimDown = [.16, .36];
     P.matter = [0, .36];
     WORDMARK_TRAVEL = .04;   // as letras se apagam antes, para não ficarem sobre as paredes
   }
-  var P_ARC_TONE = [0, .12];   // experimento vidro: cor do arco, do azul da marca ao da borda
+  var P_ARC_TONE = [0, .12];   // experimento vidro (anterior): cor do arco no SVG
+  var P_ARC_BAND = [0, .004];  // experimento vidro: o túnel assume o desenho do arco
+  var P_ARC_TINT = [.02, .15];  // e a faixa passa da cor da marca à matéria do túnel
 
   /* Saída distante (celular, referência tuneltech, frames 04–06). O arco da logo deixa de ser a
      própria saída: ele forma a entrada do túnel (plano z = ENTRY), perto da câmera, e a saída
@@ -372,6 +377,9 @@
         form: COARSE ? 1 : 0,                         // formação gradual: só no celular
         struct: COARSE ? 1 : 0,                       // estrutura contínua: só no celular
         wallGlass: WALL_GLASS ? 1 : 0,                // experimento ?paredes=vidro
+        arcBand: WALL_GLASS && p > 0 ? smooth(p, P_ARC_BAND) : 0,
+        arcTint: WALL_GLASS ? smooth(p, P_ARC_TINT) : 0,
+        tips: WALL_GLASS ? smooth(p, P.tips) : 0,
         vault: COARSE ? 1 : 0,                        // teto contínuo com juntas longitudinais: só no celular
         lineEarly: COARSE ? smooth(p, [.06, .26]) : 0,  // linhas de perspectiva antes das superfícies
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
@@ -399,7 +407,7 @@
     face.style.opacity = scene.tunnel.light.toFixed(4);   // a borda interna do arco ganha luz
     setTips(smooth(p, P.tips));
     // O arco mantém a cor da logo até se dissolver na borda (experimento vidro: muda de cor antes).
-    setArcTone(WALL_GLASS ? smooth(p, P_ARC_TONE) : 0);
+    setArcTone(0);   // experimento vidro: a cor muda já no desenho do túnel (arcTint)
     arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
     setArcGrow(smooth(p, P.arcGrow));
 
