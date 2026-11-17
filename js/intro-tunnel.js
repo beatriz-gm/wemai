@@ -160,7 +160,7 @@
   var GLASS_ASSEMBLE = true, GLASS_BUILD = [.12, .36];
   // Afastamento da parede no início da montagem e na posição final (mínimo + variação).
   // A variação final é desigual (h^1,6): a maioria um pouco afastada, algumas bem soltas.
-  var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80, GLASS_END_EXTRA = 80;
+  var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80, GLASS_END_EXTRA = 150;
   function hashJs(x) { var v = Math.sin(x * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }
   function glassAssembleMotion(seed, p, endK) {
     var h = function (k) { return hashJs(seed * 1.37 + k * 17.13); };

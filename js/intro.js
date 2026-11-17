@@ -266,7 +266,27 @@
   }
   // Distância até a saída: a da entrada mais o trecho extra, que se fecha com partida e
   // chegada suaves (acelera e desacelera sem salto), concentrado na segunda metade.
+  /* Experimento vidro: velocidade constante na travessia. Até CAM_P[0] a câmera é a de antes
+     (logo, arco virando borda, formação); dali a velocidade passa suavemente à de cruzeiro até
+     CAM_P[1], fica constante até CAM_P[2] e só desacelera na chegada, até a mesma distância final
+     (Home). Sem a aceleração que antes se concentrava na segunda metade do túnel. */
+  var CAM_P = [.2, .4, .9];
+  function evenDistance(p) {
+    var p1 = CAM_P[0], p2 = CAM_P[1], p3 = CAM_P[2], h = 1e-3;
+    var d1 = baseDistance(p1), v1 = (d1 - baseDistance(p1 + h)) / h, vE = (baseDistance(1 - h) - baseDistance(1)) / h;
+    var V = (d1 - baseDistance(1) - v1 * (p2 - p1) / 2 - vE * (1 - p3) / 2) / ((p2 - p1) / 2 + (p3 - p2) + (1 - p3) / 2);
+    function ramp(a, b, w, t) { return w * (a * t + (b - a) * (t * t * t - t * t * t * t / 2)); }   // ∫ de a→b (smoothstep)
+    if (p <= p2) return d1 - ramp(v1, V, p2 - p1, (p - p1) / (p2 - p1));
+    var d2 = d1 - ramp(v1, V, p2 - p1, 1);
+    if (p <= p3) return d2 - V * (p - p2);
+    return d2 - V * (p3 - p2) - ramp(V, vE, 1 - p3, (p - p3) / (1 - p3));
+  }
   function cameraDistance(p) {
+    if (!ENTRY) return entryDistance(p);
+    if (WALL_GLASS && p > CAM_P[0]) return evenDistance(p);
+    return baseDistance(p);
+  }
+  function baseDistance(p) {
     if (!ENTRY) return entryDistance(p);
     var s = smoothstepJs(phase(p, [.18, 1]));
     return entryDistance(p) + ENTRY * (1 - Math.pow(s, 2.5));
