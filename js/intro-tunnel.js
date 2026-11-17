@@ -150,7 +150,39 @@
      transição do arco (GLASS_IN) e se aproximam da parede conforme a câmera chega perto delas
      (distância GLASS_APPROACH: de longe, afastadas e inclinadas; perto, alinhadas). */
   var GLASS_REPS = 2, GLASS_PERIOD = 1215, GLASS_IN = [.16, .24], GLASS_STAGGER = .12, GLASS_APPROACH = [2400, 500];
+  /* Montagem das lâminas (paredes de vidro): durante a formação do túnel (GLASS_BUILD, no
+     progresso da câmera) cada lâmina parte suspensa, afastada da parede, inclinada e deslocada
+     no comprimento e na altura, e desliza até a sua posição final, onde fica. Cada uma tem
+     atraso, duração, lado de chegada e trajetória próprios (sem alternância nem espelho); a
+     posição final guarda pequenos recuos e inclinações diferentes, para as camadas se
+     sobreporem. Depois de montada não se move mais: na travessia fica parada no túnel.
+     GLASS_ASSEMBLE = false volta ao movimento anterior (aproximação pela distância da câmera). */
+  var GLASS_ASSEMBLE = true, GLASS_BUILD = [.12, .36];
+  function hashJs(x) { var v = Math.sin(x * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }
+  function glassAssembleMotion(seed, p) {
+    var h = function (k) { return hashJs(seed * 1.37 + k * 17.13); };
+    var dur = .1 + .07 * h(1);
+    var d0 = GLASS_BUILD[0] + (GLASS_BUILD[1] - GLASS_BUILD[0] - dur) * h(2);
+    var x = Math.min(Math.max((p - d0) / dur, 0), 1);
+    var k = 1 - Math.pow(1 - x, 3);                          // chega devagar, sem tranco
+    var t0 = (GLASS_TILT_MIN + (GLASS_TILT_MAX - GLASS_TILT_MIN) * h(3)) * (h(4) < .5 ? 1 : -1);
+    var tF = t0 * (.1 + .25 * h(5));                          // inclinação que fica (camadas)
+    var g0 = GLASS_FLOAT_FAR + GLASS_FLOAT_VAR * h(6);
+    var gF = 7 + 16 * h(7);                                   // recuo final, diferente por lâmina
+    var u0 = (h(8) < .5 ? -1 : 1) * (40 + 90 * h(9));         // vem de trás ou da frente
+    var v0 = (h(10) - .5) * 60;
+    var fly = Math.sin(x * Math.PI) * (1 - x);                // leve curva só durante o trajeto
+    return {
+      g: g0 + (gF - g0) * k + 4 * fly * (h(11) - .5),
+      tilt: t0 + (tF - t0) * k,
+      vis: smoothstepJs(d0, d0 + .04, p),
+      loose: 1,
+      u: u0 * (1 - k),
+      v: v0 * (1 - k) + 10 * fly * (h(12) - .5)
+    };
+  }
   function glassFloatMotion(seed, p, dist) {
+    if (GLASS_ASSEMBLE) return glassAssembleMotion(seed, p);
     // Cada lâmina surge no seu tempo (até GLASS_STAGGER depois da primeira), não todas juntas.
     var a0 = GLASS_IN[0] + GLASS_STAGGER * ((seed * 5.17) % 1);
     var a = smoothstepJs(a0, a0 + GLASS_IN[1] - GLASS_IN[0], p);
