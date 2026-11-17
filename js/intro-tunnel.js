@@ -147,9 +147,15 @@
     [.4, 384, 770],
     [.85, 400, 540]
   ];
-  function glassFloatMotion(tin, seed, p) {
-    var a = smoothstepJs(tin, tin + .08, p);
-    var near = smoothstepJs(tin, tin + GLASS_FLOAT_TIME, p);
+  /* Lâminas pelo túnel inteiro: o padrão das telas se repete GLASS_REPS vezes ao longo do
+     comprimento (período GLASS_PERIOD, em unidades da tabela) e, a cada quadro, vão para o
+     shader as PANEL_SLOTS mais próximas à frente da câmera em cada parede. Surgem depois da
+     transição do arco (GLASS_IN) e se aproximam da parede conforme a câmera chega perto delas
+     (distância GLASS_APPROACH: de longe, afastadas e inclinadas; perto, alinhadas). */
+  var GLASS_REPS = 2, GLASS_PERIOD = 1215, GLASS_IN = [.16, .26], GLASS_APPROACH = [2400, 500];
+  function glassFloatMotion(seed, p, dist) {
+    var a = smoothstepJs(GLASS_IN[0], GLASS_IN[1], p);
+    var near = smoothstepJs(GLASS_APPROACH[0], GLASS_APPROACH[1], dist);
     var far = GLASS_FLOAT_FAR + GLASS_FLOAT_VAR * ((seed * 7.31) % 1);
     var w = p * PANEL_SPEED + seed * 6.283;
     // Inclinação própria (sinal alternado, GLASS_TILT_MIN a GLASS_TILT_MAX rad) que diminui
@@ -187,30 +193,48 @@
      de cima e de baixo; teto: arco inicial e final, z inicial e final). state: afastamento,
      visibilidade, solta = 1, tipo + 10 se azulada + semente. Paredes: posições
      0 a PANEL_SLOTS − 1 à direita, as seguintes à esquerda. */
-  function panelUniforms(p, box, state, cbox, cstate, wallGlass) {
+  function glassPanelUniforms(p, box, state, cam) {
+    var lists = [[], []];
+    for (var r = 0; r < GLASS_REPS; r++) {
+      WALL_PANELS.forEach(function (q, i) {
+        var side = q[0] > 0 ? 0 : 1;
+        var n = i + r * WALL_PANELS.length;
+        var seed = PANEL_KINDS[n % PANEL_KINDS.length] + 10 * q[8] + ((n * .618) % 1) * .98;
+        var z0 = (q[1] + r * GLASS_PERIOD) * PANEL_DEPTH;
+        var sh = GLASS_SHAPES[(i + 2 * r) % GLASS_SHAPES.length];
+        var hz = (q[2] - q[1]) * sh[0];
+        var cz0 = z0 + (q[2] - q[1]) / 2;
+        if (cz0 - hz > cam - 30) return;             // já ficou para trás da câmera
+        lists[side].push({ q: q, seed: seed, sh: sh, hz: hz, cz0: cz0 });
+      });
+    }
+    lists.forEach(function (list, side) {
+      list.sort(function (a, b) { return b.cz0 - a.cz0; });   // mais perto da câmera primeiro
+      for (var k = 0; k < PANEL_SLOTS && k < list.length; k++) {
+        var o = list[k], q = o.q, sh = o.sh;
+        var m = glassFloatMotion(o.seed, p, cam - o.cz0);
+        var cz = o.cz0 + m.u;
+        var hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2, cy = (q[3] + q[4]) / 2 + m.v;
+        if (sh[1] !== null) { cy = (sh[1] + sh[2]) / 2 + m.v; hy = (sh[2] - sh[1]) / 2; }
+        var at = (side * PANEL_SLOTS + k) * 4;
+        box.set([cz - o.hz, cz + o.hz, cy - hy, cy + hy], at);
+        // A ponta que gira para a parede nunca a atravessa. Estado: solta = 2 + inclinação.
+        state.set([Math.max(m.g, o.hz * Math.abs(Math.sin(m.tilt)) + 6), m.vis, 2 + m.tilt, o.seed], at);
+      }
+    });
+  }
+
+  function panelUniforms(p, box, state, cbox, cstate, wallGlass, cam) {
     var slot = [0, PANEL_SLOTS];
     box.fill(0); state.fill(0); cbox.fill(0); cstate.fill(0);
-    WALL_PANELS.forEach(function (q, i) {
+    if (wallGlass) glassPanelUniforms(p, box, state, cam);
+    else WALL_PANELS.forEach(function (q, i) {
       var side = q[0] > 0 ? 0 : 1;
       var k = slot[side]++;
       if (k >= PANEL_SLOTS * (side + 1)) return;
       var seed = PANEL_KINDS[i % PANEL_KINDS.length] + 10 * q[8] + ((i * .618) % 1) * .98;
-      var m = wallGlass ? glassFloatMotion(q[6], seed, p) : panelMotion(q[5], q[6], q[7], seed, p);
+      var m = panelMotion(q[5], q[6], q[7], seed, p);
       var z0 = q[1] * PANEL_DEPTH;
-      if (wallGlass) {
-        // Lâminas maiores que as telas (mais perto das da referência), a partir do centro.
-        var hz = (q[2] - q[1]) * GLASS_FLOAT_SIZE / 2, hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2;
-        var cz = z0 + (q[2] - q[1]) / 2 + m.u, cy = (q[3] + q[4]) / 2 + m.v;
-        // Tamanhos e proporções variados (como na referência): cada lâmina segue um formato de
-        // GLASS_SHAPES, em sequência; [meia-largura, y de cima, y de baixo] (null = altura atual).
-        var sh = GLASS_SHAPES[i % GLASS_SHAPES.length];
-        hz = (q[2] - q[1]) * sh[0];
-        if (sh[1] !== null) { cy = (sh[1] + sh[2]) / 2 + m.v; hy = (sh[2] - sh[1]) / 2; }
-        box.set([cz - hz, cz + hz, cy - hy, cy + hy], k * 4);
-        // A ponta que gira para a parede nunca a atravessa. Estado: solta = 2 + inclinação.
-        state.set([Math.max(m.g, hz * Math.abs(Math.sin(m.tilt)) + 6), m.vis, 2 + m.tilt, seed], k * 4);
-        return;
-      } else
       box.set([z0 + m.u, z0 + q[2] - q[1] + m.u, q[3] + m.v, q[4] + m.v], k * 4);
       state.set([m.g, m.vis, m.loose, seed], k * 4);
     });
@@ -424,12 +448,13 @@
     'const float PG_SHADOW=.30;const float PG_INK=.3;',
     // Lâminas das paredes de vidro: cor quente da saída e do céu refletidas, força do reflexo
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
-    'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
-    'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
-    'const float GL_FLOOR=.35;',
+    'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.06;',
+    // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
+    'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=1.;const float GL_HALO=.09;',
+    'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
-    'const float GL_SHADE=.3;const float GL_CAUST=.06;const float GL_SPILL=.05;',          // força do reflexo das lâminas no piso
+    'const float GL_SHADE=.3;const float GL_CAUST=.06;const float GL_SPILL=.08;',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -627,7 +652,7 @@
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
-    '    c+=lin(GL_EDGEC)*(line(ed,.5,fm)*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(4.+fm))*GL_HALO*(.5+sl))*vis*cl;',
+    '    c+=lin(GL_EDGEC)*(line(ed,.5,fm)*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl))*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
@@ -1470,7 +1495,7 @@
       gl.uniform1f(u.uArcB, s.arcBand || 0);
       gl.uniform1f(u.uArcT, s.arcTint || 0);
       gl.uniform1f(u.uTips, s.tips || 0);
-      panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState, s.wallGlass > .5);
+      panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState, s.wallGlass > .5, s.camera);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
       gl.uniform4fv(u.uPB, panelBox);
