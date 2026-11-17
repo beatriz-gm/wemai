@@ -426,6 +426,7 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.80,.60);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
+    'const float GL_FLOOR=2.;',          // força do reflexo das lâminas no piso
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -1112,10 +1113,13 @@
     '    vec2 g=glasses(d,0.,0.,L,F,Z,S)*vec2(1.-.85*uPanel,1.-.8*uPanel);',
     // O reflexo perde nitidez e força à medida que o piso se aproxima da câmera.
     '    if(surf==0.){',
-    '      vec2 gr=glasses(d,1.,16.+dz*.05,Lm,Fm,Zm,Sm)*(.10+frT*1.4)*exp(-max(t-500.,0.)/700.);',
+    // Paredes de vidro: reflexo das lâminas mais nítido, mais forte e visível até mais perto da
+    // câmera; as bordas refletem o fio de luz ciano delas.
+    '      vec2 gr=glasses(d,1.,mix(16.+dz*.05,4.+dz*.02,uWallG),Lm,Fm,Zm,Sm)*(.10+frT*1.4)*mix(1.,GL_FLOOR,uWallG)*exp(-max(t-500.,0.)/mix(700.,1400.,uWallG));',
     // A cor da tela acesa aparece no reflexo.
     '      gr*=K_REFL;',
     '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
+    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.8*uWallG;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
