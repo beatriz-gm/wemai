@@ -137,6 +137,16 @@
   var GLASS_FLOAT_SIZE = 1.3;   // tamanho das lâminas em relação às telas
   // Inclinação das lâminas em relação à parede (rad) e quanto dela se desfaz até chegarem perto.
   var GLASS_TILT_MIN = .28, GLASS_TILT_MAX = .55, GLASS_TILT_SETTLE = .8;
+  // Formatos das lâminas, em sequência: meia-largura (fração da largura da tela) e faixa de
+  // altura (y de cima e de baixo; null = a da tela, aumentada em GLASS_FLOAT_SIZE). Alta (quase
+  // do piso ao nascer da abóbada), larga e baixa, média, alta e estreita, larga no alto.
+  var GLASS_SHAPES = [
+    [.55, 372, 782],
+    [.85, 625, 762],
+    [.65, null, null],
+    [.4, 384, 770],
+    [.85, 400, 540]
+  ];
   function glassFloatMotion(tin, seed, p) {
     var a = smoothstepJs(tin, tin + .08, p);
     var near = smoothstepJs(tin, tin + GLASS_FLOAT_TIME, p);
@@ -191,6 +201,11 @@
         // Lâminas maiores que as telas (mais perto das da referência), a partir do centro.
         var hz = (q[2] - q[1]) * GLASS_FLOAT_SIZE / 2, hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2;
         var cz = z0 + (q[2] - q[1]) / 2 + m.u, cy = (q[3] + q[4]) / 2 + m.v;
+        // Tamanhos e proporções variados (como na referência): cada lâmina segue um formato de
+        // GLASS_SHAPES, em sequência; [meia-largura, y de cima, y de baixo] (null = altura atual).
+        var sh = GLASS_SHAPES[i % GLASS_SHAPES.length];
+        hz = (q[2] - q[1]) * sh[0];
+        if (sh[1] !== null) { cy = (sh[1] + sh[2]) / 2 + m.v; hy = (sh[2] - sh[1]) / 2; }
         box.set([cz - hz, cz + hz, cy - hy, cy + hy], k * 4);
         // A ponta que gira para a parede nunca a atravessa. Estado: solta = 2 + inclinação.
         state.set([Math.max(m.g, hz * Math.abs(Math.sin(m.tilt)) + 6), m.vis, 2 + m.tilt, seed], k * 4);
