@@ -651,7 +651,11 @@
     // Reflexo no vidro (paredes de vidro): a luz quente da saída do lado voltado para ela e o
     // azul do céu do outro, mais forte quando a lâmina é vista de lado (Fresnel) e num degradê
     // mais claro no alto.
-    '    body+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*cl;',
+    // Nível de cada lâmina solta (pk): as mais afastadas da parede, e uma variação própria,
+    // ficam mais vivas (reflexo, borda, espessura); as encostadas, mais frias e discretas.
+    '    float pk=clamp(.5*fract(S.w*7.13+.3)+.5*smoothstep(12.,48.,S.x),0.,1.);',
+    '    body=mix(body,body*vec3(.9,.94,1.),(1.-pk)*cl*.6);',
+    '    body+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*mix(.7,1.25,pk)*cl;',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
@@ -662,7 +666,7 @@
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
-    '    c+=lin(GL_EDGEC)*(lineT(ed,fm)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
+    '    c+=lin(GL_EDGEC)*((lineT(ed,fm)+lineT(ed-2.-3.*pk,fm)*.3*pk)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K*mix(.55,1.15,pk)+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
@@ -997,6 +1001,11 @@
     '    float hs=hash(vec2(c1.x,sdw*3.7));float ys=hs<.75?SPRING+60.+hash(vec2(c1.x,sdw*5.3))*(FLOOR-SPRING-170.):-1e4;',
     '    float up=P.y<ys?1.:0.;vec2 cid=vec2(c1.x,up+sdw*11.);',
     '    float den=.16+.52*hash(cid),rec=hash(cid+9.1),tl=hash(cid+3.7)-.5,eg=hash(cid+5.3);',
+    /* Camadas: cada lâmina fica num nível (kz, do recuo dela): as da frente são um pouco mais
+       densas, claras e refletem mais, com borda mais viva e a espessura do vidro visível; as do
+       fundo são mais transparentes, mais frias e de borda mais discreta. eg varia a borda entre
+       lâminas do mesmo nível, para a parede não se repetir. */
+    '    float kz=rec;den*=mix(.72,1.12,kz);float ek=mix(.5,1.15,kz)*(.75+.5*eg);',
     '    float cv=abs(d.x)/length(vec3(d,1.));float fr=pow(1.-cv,5.);den=mix(den,1.,fr*.6);',
     '    float t2=(uW+WG_D)/abs(d.x);vec3 P2=vec3(t2*d.x,EYE+t2*d.y,uCam-t2);float fp2=t2/uF;',
     '    vec3 back=base*.34*vec3(.70,.86,1.22);',
@@ -1009,6 +1018,7 @@
     '      back*=1.-(1.-smoothstep(0.,14.,e2))*.3;',
     '    }else back*=.7;',
     '    vec3 gc=base*(1.+.24*tl)*(1.+.16*(smoothstep(FLOOR,SPRING,P.y)-.5)*sign(tl));',
+    '    gc*=mix(vec3(.84,.88,.96),vec3(1.06),kz);',
     '    col=mix(back,gc,den);',
     '    float ez0=P.z-c1.y,ez1=c1.z-P.z,eyy=abs(P.y-ys);',
     /* Mesmo acabamento das lâminas flutuantes: fio de luz ciano nas bordas (mais forte do lado
@@ -1024,8 +1034,8 @@
     '    float zc=.5*(c1.y+c1.z);float zec=zc<ENTRY?(ENTRY-zc)*.3:zc-ENTRY;',
     '    float fmc=gF-gZ+.35*smoothstep(0.,2400.,zec)-GL_STAG*hash(vec2(c1.x+up*.5,sdw*3.));',
     '    float gSc=smoothstep(0.,1.,clamp((fmc-GL_LAG*.4)*1.4,0.,1.));float gDc=smoothstep(0.,1.,clamp((fmc-GL_LAG)*1.6,0.,1.));',
-    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex*gDc;',
-    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gDc;',
+    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*mix(.6,1.3,kz)*lo*ex*gDc;',
+    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez0-3.-6.*kz,fp)*.3*kz+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K*ek+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gDc;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     // Formação: a divisão em lâminas surge depois da superfície (gS).
@@ -1093,6 +1103,9 @@
     '    col*=mix(vec3(1.),vec3(.94,.98,1.06),wl.x*surf*uWallG*uTech);',
     '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel)*(1.-.8*uWallG);',
     '    col+=lin(GL_EDGEC)*(wl.y*GL_SPILL+wl.z*surf*GL_CAUST)*uTech*uWallG*gD;',
+    // Piso junto às paredes de vidro: leve claridade fria que vem das lâminas, sumindo para o
+    // centro, para o piso e as laterais lerem como um espaço só.
+    '    if(surf==0.)col+=lin(GL_SKY)*col*exp(-(uW-abs(P.x))/110.)*.45*uTech*uWallG*gD*smoothstep(80.,400.,P.z);',
     '    col*=1.-.14*wl.y*uPanel*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
