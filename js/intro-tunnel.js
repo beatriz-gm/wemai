@@ -324,6 +324,9 @@
     // abertura, em relação ao progresso da câmera) e força. O feixe fixo fica em BEAM_BASE da
     // força; o pulso mantém a sua.
     'const float PULSE_GAP=900.;const float PULSE_SPEED=6.;const float PULSE_K=1.6;',
+    // Paredes de vidro: onda de luz que percorre as sete linhas do teto juntas, rumo à saída
+    // (WAVE_N ondas ao longo da travessia, força WAVE_K).
+    'const float WAVE_N=3.5;const float WAVE_K=2.2;',
     // Estrutura tecnológica (teste, references/Storyboard WEMAI_ Da Ideia ao Horizonte.png):
     // camadas de luz com o perfil do túnel (paredes + abóbada), em planos igualmente
     // espaçados: linhas finas, como tubos de luz ciano junto à superfície. Primeiro plano (a
@@ -1027,12 +1030,18 @@
     // Paredes de vidro: as sete juntas do teto acendem; kv guarda qual junta, para o pulso alternar.
     '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;kv=floor(sqv+.5);if(abs(kv)<3.5)ds=min(ds,abs(sqv-kv)*VAULT_SEAM);}',
     '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
-    // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera; no teto de vidro, 1,8×).
-    '  bool cPul=uWallG>.5&&surf==2.;float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED*(cPul?1.8:1.)+(cPul?fract((kv+3.)*.43):0.));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
+    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    /* Paredes de vidro, teto: as duas linhas dos ombros ficam acesas (com o pulso de sempre); as
+       outras cinco só acendem com a onda, um anel de luz que de tempos em tempos sai de perto da
+       câmera e corre para a saída (t é a distância em z até a câmera). Frente nítida, cauda suave. */
+    '  bool cG=uWallG>.5&&surf==2.;bool cSh=cG&&abs(abs(kv)-2.)<.5;',
+    '  if(cG){float wph=fract(uProg*WAVE_N);float wx=t-mix(150.,2800.,wph);',
+    '    float wv=(wx>0.?exp(-wx/45.):exp(wx/260.))*smoothstep(0.,.08,wph)*(1.-smoothstep(.7,1.,wph));',
+    '    pulse=(cSh?pulse:0.)+wv*WAVE_K/PULSE_K;}',
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
     '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
-    '  float bBase=uWallG>.5&&surf==2.?0.:BEAM_BASE;',
-    // Paredes de vidro: no teto cada linha só acende com o pulso, com atraso próprio por linha.
+    '  float bBase=cG&&!cSh?0.:BEAM_BASE;',
     '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(bBase+PULSE_K*pulse);',
     '  if(uForm>.5)lnL+=bm*inT*bnear*(1.-smoothstep(fE-400.,fE,P.z))*uLineE*.8;',
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
