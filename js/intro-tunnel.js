@@ -452,12 +452,12 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.72,.90,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
-    'const vec3 GL_EDGEC=vec3(.52,.80,1.);const float GL_EDGE_K=1.35;const float GL_HALO=.12;',
+    'const vec3 GL_EDGEC=vec3(.52,.80,1.);const float GL_EDGE_K=1.8;const float GL_HALO=.16;const float GL_GLOW=.07;',
     'const float GL_THIN=1.15;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
-    'const float GL_SHADE=.3;const float GL_CAUST=.13;const float GL_SPILL=.2;',
+    'const float GL_SHADE=.3;const float GL_CAUST=.17;const float GL_SPILL=.32;',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -657,7 +657,7 @@
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
-    '    c+=lin(GL_EDGEC)*(lineT(ed,fm)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl))*vis*cl;',
+    '    c+=lin(GL_EDGEC)*(lineT(ed,fm)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
@@ -1005,7 +1005,7 @@
     '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
     '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
     '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
-    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5)*lo*ex;',
+    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     '  }',
