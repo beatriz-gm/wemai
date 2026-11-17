@@ -426,7 +426,7 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.80,.60);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
-    'const float GL_FLOOR=.65;',          // força do reflexo das lâminas no piso
+    'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -960,10 +960,17 @@
     '    vec3 gc=base*(1.+.24*tl)*(1.+.16*(smoothstep(FLOOR,SPRING,P.y)-.5)*sign(tl));',
     '    col=mix(back,gc,den);',
     '    float ez0=P.z-c1.y,ez1=c1.z-P.z,eyy=abs(P.y-ys);',
-    '    float ek=eg>.45?1.:.15;',
-    '    col+=lin(PG_SHEEN)*((line(ez0,.5,fp)*.30+exp(-ez0/(7.+fp))*.10)*ek+line(eyy,.45,fp)*.18)*lo*Lavg*GAIN*.35;',
-    '    col*=1.-(1.-smoothstep(0.,3.+rec*16.,ez1))*.38*lo;',
-    '    col*=1.-(1.-smoothstep(0.,2.+rec*6.,eyy))*up*.25*lo;',
+    /* Mesmo acabamento das lâminas flutuantes: fio de luz ciano nas bordas (mais forte do lado
+       da saída e na divisão de cima), halo leve, reflexo quente da saída e frio do céu (mais
+       quando vista de lado, mais claro no alto) e uma sombra sutil do lado da câmera. A
+       exposição da saída distante é descontada, para o brilho ser o mesmo das lâminas. */
+    '    float ex=ENTRY>0.?pow(max(uCam/2400.,1.),-1.25):1.;',
+    '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
+    '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
+    '    col+=(lin(GL_WARM)*tw*tw*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
+    '    col+=lin(GL_EDGEC)*((line(ez0,.5,fp)*1.25+line(ez1,.5,fp)*.6+line(eyy,.45,fp)*1.1)*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5)*lo*ex;',
+    '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
+    '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     '  }',
     '  if(ENTRY>0.)col*=pow(max(uCam/2400.,1.),1.25);',
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
@@ -1119,7 +1126,7 @@
     // A cor da tela acesa aparece no reflexo.
     '      gr*=K_REFL;',
     '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
-    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.25*uWallG;',
+    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.14*uWallG;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
