@@ -455,7 +455,7 @@
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.72,.90,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
     'const vec3 GL_EDGEC=vec3(.52,.80,1.);const float GL_EDGE_K=1.8;const float GL_HALO=.16;const float GL_GLOW=.07;',
-    'const float GL_THIN=1.15;const float GL_LAG=.55;',           // brilho do fio fino das bordas (o pico do fio de antes)
+    'const float GL_THIN=1.15;const float GL_LAG=.55;const float GL_STAG=.14;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
@@ -609,7 +609,7 @@
     // xd: direção da saída no plano da tela (q); fres: cosseno entre o olhar e a normal da tela.
     // Paredes de vidro: quanto os detalhes do vidro (bordas acesas, halo, reflexos, luz espalhada)
     // já chegaram neste pixel. Calculado no main; 1 fora da formação.
-    'float gD=1.,gS=1.;',   // gS: a divisão das lâminas da parede (estrutura), antes dos detalhes
+    'float gD=1.,gS=1.,gF=9.,gZ=0.;',   // gS: a divisão das lâminas da parede (estrutura), antes dos detalhes
     'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf,vec2 xd,float cv,float kc){',
     '  float vis=S.y*uTech*kf;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
@@ -825,6 +825,7 @@
     '    float dB0=abs(length(vec2(qa0.x,(qa0.y-ARC_CY)*(qa0.y<ARC_CY?1.:.75)))-uArcR);',
     '    float ze0=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
     '    float fm0=uMat*2.3-(.5*smoothstep(0.,1100.,dB0)+.35*smoothstep(0.,2400.,ze0)+.06);',
+    '    gF=fm0;gZ=.35*smoothstep(0.,2400.,ze0);',
     '    gS=smoothstep(0.,1.,clamp((fm0-GL_LAG*.4)*1.4,0.,1.));gD=smoothstep(0.,1.,clamp((fm0-GL_LAG)*1.6,0.,1.));}',
     '  float fp=t/uF;',                    // tamanho do pixel na superfície (unidades)
 
@@ -1017,12 +1018,18 @@
     '    float ex=ENTRY>0.?pow(max(uCam/2400.,1.),-1.25):1.;',
     '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
     '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
-    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex*gD;',
-    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gD;',
+    /* Formação escalonada: cada lâmina da parede (metade de cima ou de baixo de cada divisão)
+       ganha definição como uma peça só, no tempo da sua posição (o centro dela em
+       profundidade) e com um pequeno atraso próprio; a passagem continua suave. Ao fim, 1. */
+    '    float zc=.5*(c1.y+c1.z);float zec=zc<ENTRY?(ENTRY-zc)*.3:zc-ENTRY;',
+    '    float fmc=gF-gZ+.35*smoothstep(0.,2400.,zec)-GL_STAG*hash(vec2(c1.x+up*.5,sdw*3.));',
+    '    float gSc=smoothstep(0.,1.,clamp((fmc-GL_LAG*.4)*1.4,0.,1.));float gDc=smoothstep(0.,1.,clamp((fmc-GL_LAG)*1.6,0.,1.));',
+    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex*gDc;',
+    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gDc;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     // Formação: a divisão em lâminas surge depois da superfície (gS).
-    '    col=mix(base,col,gS);',
+    '    col=mix(base,col,gSc);',
     '  }',
     '  if(ENTRY>0.)col*=pow(max(uCam/2400.,1.),1.25);',
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
