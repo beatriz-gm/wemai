@@ -452,12 +452,12 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.72,.90,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
-    'const vec3 GL_EDGEC=vec3(.80,.95,1.);const float GL_EDGE_K=.95;const float GL_HALO=.085;',
+    'const vec3 GL_EDGEC=vec3(.52,.80,1.);const float GL_EDGE_K=1.35;const float GL_HALO=.12;',
     'const float GL_THIN=1.15;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
-    'const float GL_SHADE=.3;const float GL_CAUST=.09;const float GL_SPILL=.13;',
+    'const float GL_SHADE=.3;const float GL_CAUST=.13;const float GL_SPILL=.2;',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
