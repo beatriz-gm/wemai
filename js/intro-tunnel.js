@@ -662,8 +662,8 @@
     '}',
     'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float lu=dot(c,vec3(.3,.59,.11));float lb=smoothstep(.6,.95,lu);',
     // Experimento vidro: sobre o fundo claro, a borda tem o mesmo azul do arco (que vira ela),
-    // mais cheia e sem o brilho somado que a deixava ciano-clara.
-    '  float k=min(rl.x*(1.+.7*uWallG*lb),1.);vec3 cc=mix(vec3(.50,.86,1.),mix(vec3(.20,.62,.96),vec3(.23,.57,.90),uWallG),lb);',
+    // sem o brilho somado que a deixava ciano-clara.
+    '  float k=min(rl.x,1.);vec3 cc=mix(vec3(.50,.86,1.),mix(vec3(.20,.62,.96),vec3(.23,.57,.90),uWallG),lb);',
     '  return mix(c,cc,k*mix(.6,.9,lb))+vec3(.62,.88,1.)*rl.x*RIM_K*.16*(1.-.8*uWallG*lb);}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
@@ -1074,7 +1074,7 @@
     '    mL=smoothstep(0.,1.,clamp(uMat*1.9-dl,0.,1.));',
     // Experimento vidro: saída do branco em ritmo constante (sem segurar o branco e depois
     // escurecer de uma vez); o atraso por profundidade e superfície continua, mais curto.
-    '    if(uWallG>.5)mL=clamp(uMat*1.35-dl*.7,0.,1.);',
+    '    if(uWallG>.5)mL=clamp(uMat*1.5-dl*.6,0.,1.);',
     '  }',
     '  col=mix(white,col,mL);',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',

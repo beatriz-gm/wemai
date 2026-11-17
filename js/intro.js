@@ -159,11 +159,14 @@
      muda de cor direto do azul da marca para o azul da borda do túnel (sem clarear antes) e só
      depois se funde na borda; o túnel sai do branco ao mesmo tempo, em ritmo constante. */
   if (WALL_GLASS) {
-    P.tips = [.03, .19];
-    P.rim = [.04, .16];
-    P.arcMerge = [.1, .22];
-    P.rimDown = [.06, .2];
-    P.matter = [.02, .5];
+    // O arco não forma um contorno antes do túnel: as paredes nascem junto com o crescimento
+    // dele (arcGrow) e ele se funde na borda delas enquanto aparecem.
+    P.tips = [.02, .16];
+    P.rim = [.03, .15];
+    P.arcMerge = [.06, .18];
+    P.rimDown = [.04, .16];
+    P.matter = [0, .44];
+    WORDMARK_TRAVEL = .055;   // as letras se apagam antes, para não ficarem sobre as paredes
   }
   var P_ARC_TONE = [0, .15];   // experimento vidro: cor do arco, do azul da marca ao da borda
 
@@ -351,7 +354,8 @@
         light: easeInOutSine(phase(t, T.light)),
         arch: smooth(p, P.arch),
         column: smooth(p, P.column),
-        matter: smooth(p, P.matter),
+        // Experimento vidro: ritmo constante desde o início (sem a partida lenta da curva).
+        matter: WALL_GLASS ? phase(p, P.matter) : smooth(p, P.matter),
         joints: smooth(p, P.joints),
         strips: smooth(p, P.strips),
         tech: smooth(p, P.techIn) * (1 - smooth(p, P.techOut)),
