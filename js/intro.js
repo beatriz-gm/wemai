@@ -169,10 +169,12 @@
     // A faixa do arco vira o fio de luz da borda da boca (P_ARC_TINT); quando os dois são
     // iguais, a borda assume (P.rim) e a faixa sai (P_ARC_OUT). As laterais da borda descem
     // das extremidades do arco enquanto as pontas se dissolvem. A borda já nasce fina.
+    // Sem atraso: a borda acende sobre o arco, as laterais descem e o arco chega ao tom dela,
+    // tudo na mesma janela (P_ARC_TINT).
     P.tips = [.01, .1];
-    P.rim = [.17, .23];
+    P.rim = [.02, .2];
     P.arcMerge = [.004, .03];
-    P.rimDown = [.12, .3];
+    P.rimDown = [.02, .2];
     P.rimThin = [0, .001];
     P.matter = [0, .36];
     WORDMARK_TRAVEL = .04;   // as letras se apagam antes, para não ficarem sobre as paredes

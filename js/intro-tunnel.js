@@ -1143,8 +1143,9 @@
     '    float hn=mix(hw,.9+1.1*fa,uArcT);',
     '    float ma=smoothstep(-sw,sw,hn-dm)*smoothstep(-sw,sw,494.63-qs.y);',
     '    ma*=1.-uTips*smoothstep(ARC_CY-20.,ARC_CY+40.,qs.y);',
-    '    vec3 lc=rimOn(col,vec2(1.,0.),0.);',
-    '    col=mix(col,mix(vec3(.043,.122,.2),lc,uArcT),ma*uArcB);',
+    // A borda acende por cima no mesmo ritmo (uRim acompanha uArcT): a faixa cede para o fundo
+    // na mesma medida, então ao fim só resta o fio de luz, sem brilho dobrado.
+    '    col=mix(col,mix(vec3(.043,.122,.2),col,uArcT),ma*uArcB);',
     '  }',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
