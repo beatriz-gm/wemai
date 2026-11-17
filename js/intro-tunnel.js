@@ -452,7 +452,7 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
-    'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.55;const float GL_HALO=.05;',
+    'const vec3 GL_EDGEC=vec3(.70,.82,1.);const float GL_EDGE_K=.55;const float GL_HALO=.05;',
     'const float GL_THIN=1.15;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
