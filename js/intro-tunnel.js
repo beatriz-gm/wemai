@@ -426,7 +426,7 @@
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
     'const vec3 GL_WARM=vec3(1.,.80,.60);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
-    'const float GL_FLOOR=2.;',          // força do reflexo das lâminas no piso
+    'const float GL_FLOOR=1.15;',          // força do reflexo das lâminas no piso
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -1119,7 +1119,7 @@
     // A cor da tela acesa aparece no reflexo.
     '      gr*=K_REFL;',
     '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
-    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.8*uWallG;',
+    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.45*uWallG;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
