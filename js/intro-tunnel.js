@@ -1027,8 +1027,8 @@
     // Paredes de vidro: as sete juntas do teto acendem; kv guarda qual junta, para o pulso alternar.
     '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;kv=floor(sqv+.5);if(abs(kv)<3.5)ds=min(ds,abs(sqv-kv)*VAULT_SEAM);}',
     '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
-    // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
-    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED+(uWallG>.5&&surf==2.?fract((kv+3.)*.43):0.));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera; no teto de vidro, 1,8×).
+    '  bool cPul=uWallG>.5&&surf==2.;float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED*(cPul?1.8:1.)+(cPul?fract((kv+3.)*.43):0.));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
     '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
     '  float bBase=uWallG>.5&&surf==2.?0.:BEAM_BASE;',
