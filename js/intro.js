@@ -166,16 +166,21 @@
     // Arco integrado: assim que a câmera parte, o arco passa a ser desenhado pelo túnel (mesma
     // forma e cor) e o SVG some no mesmo instante; a faixa vira matéria do túnel (P_ARC_TINT)
     // enquanto o túnel cresce a partir dela. As pontas se dissolvem no próprio túnel (P.tips).
+    // A faixa do arco vira o fio de luz da borda da boca (P_ARC_TINT); quando os dois são
+    // iguais, a borda assume (P.rim) e a faixa sai (P_ARC_OUT). As laterais da borda descem
+    // das extremidades do arco enquanto as pontas se dissolvem. A borda já nasce fina.
     P.tips = [.01, .1];
-    P.rim = [.14, .34];
+    P.rim = [.17, .23];
     P.arcMerge = [.004, .03];
-    P.rimDown = [.16, .36];
+    P.rimDown = [.12, .3];
+    P.rimThin = [0, .001];
     P.matter = [0, .36];
     WORDMARK_TRAVEL = .04;   // as letras se apagam antes, para não ficarem sobre as paredes
   }
   var P_ARC_TONE = [0, .12];   // experimento vidro (anterior): cor do arco no SVG
   var P_ARC_BAND = [0, .004];  // experimento vidro: o túnel assume o desenho do arco
-  var P_ARC_TINT = [.02, .15];  // e a faixa passa da cor da marca à matéria do túnel
+  var P_ARC_TINT = [.02, .2];   // e a faixa passa da cor e forma da marca ao fio de luz da borda
+  var P_ARC_OUT = [.2, .26];    // a borda assume e a faixa sai
 
   /* Saída distante (celular, referência tuneltech, frames 04–06). O arco da logo deixa de ser a
      própria saída: ele forma a entrada do túnel (plano z = ENTRY), perto da câmera, e a saída
@@ -377,7 +382,7 @@
         form: COARSE ? 1 : 0,                         // formação gradual: só no celular
         struct: COARSE ? 1 : 0,                       // estrutura contínua: só no celular
         wallGlass: WALL_GLASS ? 1 : 0,                // experimento ?paredes=vidro
-        arcBand: WALL_GLASS && p > 0 ? smooth(p, P_ARC_BAND) : 0,
+        arcBand: WALL_GLASS && p > 0 ? smooth(p, P_ARC_BAND) * (1 - smooth(p, P_ARC_OUT)) : 0,
         arcTint: WALL_GLASS ? smooth(p, P_ARC_TINT) : 0,
         tips: WALL_GLASS ? smooth(p, P.tips) : 0,
         vault: COARSE ? 1 : 0,                        // teto contínuo com juntas longitudinais: só no celular

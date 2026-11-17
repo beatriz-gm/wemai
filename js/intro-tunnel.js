@@ -1134,12 +1134,17 @@
     '  if(uArcB>.001){',
     '    float de=max(uCam-ENTRY,1.);vec2 qa=vec2(de*d.x,EYE+de*d.y);',
     '    float sa=uArcR/256.75;vec2 qs=vec2(qa.x/sa,ARC_CY+(qa.y-ARC_CY)/sa);',
-    '    float fa=de/uF/sa;float sw=fa*(.7+10.*uArcT*uArcT);',
-    '    float ma=smoothstep(-sw,sw,ARC_R-length(qs-vec2(0.,ARC_CY)))*smoothstep(-sw,sw,length(qs-vec2(0.,IN_CY))-IN_R)*smoothstep(-sw,sw,494.63-qs.y);',
+    // A faixa afina em torno da própria linha central até a espessura do fio de luz da borda
+    // da boca (que fica exatamente nessa linha) e a cor vai do azul da marca à do fio aceso
+    // sobre este fundo; ao fim ela é a borda luminosa, que então assume (uRim).
+    '    float fa=de/uF/sa;float sw=fa*(.7+.8*uArcT);',
+    '    float eo=ARC_R-length(qs-vec2(0.,ARC_CY)),ei=length(qs-vec2(0.,IN_CY))-IN_R;',
+    '    float hw=max(eo+ei,0.)*.5,dm=abs(eo-ei)*.5;',
+    '    float hn=mix(hw,.9+1.1*fa,uArcT);',
+    '    float ma=smoothstep(-sw,sw,hn-dm)*smoothstep(-sw,sw,494.63-qs.y);',
     '    ma*=1.-uTips*smoothstep(ARC_CY-20.,ARC_CY+40.,qs.y);',
-    // A cor da faixa vai para a do túnel exatamente como ele está ali neste instante: ao fim,
-    // ela é o próprio túnel (não fica mais escura que o entorno).
-    '    col=mix(col,mix(vec3(.043,.122,.2),col,uArcT),ma*uArcB);',
+    '    vec3 lc=rimOn(col,vec2(1.,0.),0.);',
+    '    col=mix(col,mix(vec3(.043,.122,.2),lc,uArcT),ma*uArcB);',
     '  }',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
     // Borda da boca e halo do arco, já como luz na imagem final (visíveis desde o branco).
