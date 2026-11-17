@@ -378,7 +378,7 @@
     // Linha fina com antialiasing analítico: d = distância à linha, fp = tamanho do pixel.
     'float line(float d,float hw,float fp){float w=max(hw,fp*.5);return (hw/w)*(1.-smoothstep(w,w+fp,abs(d)));}',
     // Fio de luz fino (cerca de um pixel) com brilho cheio, para as bordas das lâminas de vidro.
-    'float lineT(float d,float fp){return 1.-smoothstep(0.,fp*.85,abs(d));}',
+    'float lineT(float d,float fp){return 1.-smoothstep(0.,fp*.6,abs(d));}',
     'float grid(float c,float s,float off,float hw,float fp){float q=c-off;return line(q-s*floor(q/s+.5),hw,fp);}',
     // Hash só com aritmética (seno é caro em GPU de celular).
     'float hash(vec2 p){vec3 q=fract(p.xyx*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}',
@@ -453,7 +453,7 @@
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.55;const float GL_HALO=.05;',
-    'const float GL_THIN=.6;',           // brilho do fio fino das bordas (o pico do fio de antes)
+    'const float GL_THIN=1.15;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
@@ -523,7 +523,8 @@
     '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55*K_MARK);',
     '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6*K_MARK);',
     // Paredes de vidro: tela flutuante é só uma lâmina, sem marcador nem linha de conexão.
-    '  if(uWallG>.5){st=fr*.3*step(z,z1+2.);body*=step(z,z1+2.);}',
+    // Vista direta: o contorno fica só no fio fino da face (screenFace); no reflexo do piso, segue.
+    '  if(uWallG>.5){st=fr*.3*step(z,z1+2.)*mir;body*=step(z,z1+2.);}',
     '  return vec2(body,st)*vis;',
     '}',
     // Teste barato em cada tela; o desenho completo é feito só para a mais próxima da câmera.
@@ -652,7 +653,7 @@
     '    float sl=.3+.7*max(dot(en,xd),0.);',
     // Paredes de vidro: sem o bisel largo (a borda fica só no fio fino de luz).
     '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins*(1.-cl);',
-    '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis*(1.+.8*cl);',
+    '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis*(1.-cl);',
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
@@ -1184,7 +1185,7 @@
     '      screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL,xd,cv,S.y>.01?0.:1.);',
     '    }',
     // Borda da tela da parede do lado da saída, acesa pela luz.
-    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech*(1.-.6*uPanel);',
+    '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech*(1.-.6*uPanel)*(1.-uWallG);',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
