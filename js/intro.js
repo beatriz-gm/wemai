@@ -161,12 +161,14 @@
   if (WALL_GLASS) {
     // O arco não forma um contorno antes do túnel: as paredes nascem junto com o crescimento
     // dele (arcGrow) e ele se funde na borda delas enquanto aparecem.
+    // O arco escurece para o azul das paredes e se dissolve nelas enquanto ganham tom; a borda
+    // acesa da boca só aparece depois, já sobre as paredes (não desenha uma porta no branco).
     P.tips = [.02, .16];
-    P.rim = [.03, .15];
-    P.arcMerge = [.06, .18];
-    P.rimDown = [.04, .16];
-    P.matter = [0, .44];
-    WORDMARK_TRAVEL = .055;   // as letras se apagam antes, para não ficarem sobre as paredes
+    P.rim = [.14, .34];
+    P.arcMerge = [.08, .24];
+    P.rimDown = [.16, .36];
+    P.matter = [0, .36];
+    WORDMARK_TRAVEL = .04;   // as letras se apagam antes, para não ficarem sobre as paredes
   }
   var P_ARC_TONE = [0, .15];   // experimento vidro: cor do arco, do azul da marca ao da borda
 
@@ -190,7 +192,8 @@
   // se transforma (antes, azul do túnel: #5B86C2; antes ainda, pedra clara: #D6C9B7).
   var ARC_STONE = { fill: '#9EE3FF', face: ['#F7FDFF', '#C6F0FF', '#82D8FF'] };
   // Experimento vidro: o azul da borda acesa do túnel, sem passar pelo ciano claro.
-  if (WALL_GLASS) ARC_STONE = { fill: '#3A92E6', face: ['#8CCBFF', '#4F9EE8', '#2C74C2'] };
+  // Experimento vidro: o azul das paredes do túnel (o arco se funde nelas, sem clarear).
+  if (WALL_GLASS) ARC_STONE = { fill: '#24508F', face: ['#5A86C4', '#3563A6', '#1D4580'] };
   // Centro do arco (= centro da abóbada) e raio médio da faixa do arco, para o crescimento.
   var ARC_CY = 346.5, ARC_MID_R = (OUTER_R + 252) / 2;
 

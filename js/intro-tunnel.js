@@ -1108,7 +1108,7 @@
     '    mL=smoothstep(0.,1.,clamp(uMat*1.9-dl,0.,1.));',
     // Experimento vidro: saída do branco em ritmo constante (sem segurar o branco e depois
     // escurecer de uma vez); o atraso por profundidade e superfície continua, mais curto.
-    '    if(uWallG>.5)mL=clamp(uMat*1.5-dl*.6,0.,1.);',
+    '    if(uWallG>.5)mL=clamp(uMat*1.5-dl*.45,0.,1.);',
     '  }',
     '  col=mix(white,col,mL);',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
