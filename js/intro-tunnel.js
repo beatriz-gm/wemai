@@ -135,13 +135,19 @@
      longo da travessia, sem encostar (GLASS_FLOAT_NEAR). Não volta para dentro nem se fixa. */
   var GLASS_FLOAT_FAR = 40, GLASS_FLOAT_VAR = 14, GLASS_FLOAT_NEAR = 12, GLASS_FLOAT_TIME = .45;
   var GLASS_FLOAT_SIZE = 1.3;   // tamanho das lâminas em relação às telas
+  // Inclinação das lâminas em relação à parede (rad) e quanto dela se desfaz até chegarem perto.
+  var GLASS_TILT_MIN = .28, GLASS_TILT_MAX = .55, GLASS_TILT_SETTLE = .8;
   function glassFloatMotion(tin, seed, p) {
     var a = smoothstepJs(tin, tin + .08, p);
     var near = smoothstepJs(tin, tin + GLASS_FLOAT_TIME, p);
     var far = GLASS_FLOAT_FAR + GLASS_FLOAT_VAR * ((seed * 7.31) % 1);
     var w = p * PANEL_SPEED + seed * 6.283;
+    // Inclinação própria (sinal alternado, GLASS_TILT_MIN a GLASS_TILT_MAX rad) que diminui
+    // enquanto a lâmina se aproxima da parede: ela chega inclinada e vai se alinhando.
+    var t0 = (GLASS_TILT_MIN + (GLASS_TILT_MAX - GLASS_TILT_MIN) * ((seed * 3.71) % 1)) * (((seed * 13.7) % 1) < .5 ? 1 : -1);
     return {
       g: far + (GLASS_FLOAT_NEAR - far) * near + 2.5 * Math.sin(w * 1.3),
+      tilt: t0 * (1 - GLASS_TILT_SETTLE * near) + .025 * Math.sin(w * .9),
       vis: a,
       loose: 1,
       u: 6 * Math.sin(w * .6 + 2),
@@ -186,6 +192,9 @@
         var hz = (q[2] - q[1]) * GLASS_FLOAT_SIZE / 2, hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2;
         var cz = z0 + (q[2] - q[1]) / 2 + m.u, cy = (q[3] + q[4]) / 2 + m.v;
         box.set([cz - hz, cz + hz, cy - hy, cy + hy], k * 4);
+        // A ponta que gira para a parede nunca a atravessa. Estado: solta = 2 + inclinação.
+        state.set([Math.max(m.g, hz * Math.abs(Math.sin(m.tilt)) + 6), m.vis, 2 + m.tilt, seed], k * 4);
+        return;
       } else
       box.set([z0 + m.u, z0 + q[2] - q[1] + m.u, q[3] + m.v, q[4] + m.v], k * 4);
       state.set([m.g, m.vis, m.loose, seed], k * 4);
@@ -425,16 +434,28 @@
     // b: z inicial e final, y de cima e de baixo. vis: visibilidade. Retorna (corpo, traços);
     // L e F levam a posição no vidro e o tamanho do pixel para o acabamento (wallFace, screenFace).
     // mir = 1: visto no reflexo do piso (y espelhado), com contornos mais suaves (soft).
-    'vec2 glass(vec2 d,float s,vec4 b,float g,float vis,float mir,float soft,out vec4 L,out vec2 F){',
+    /* Lâmina inclinada (paredes de vidro): girada th em torno do eixo vertical do próprio centro
+       (z no meio de b, afastamento g da parede). sx: componente do raio em direção à parede.
+       Devolve (distância ao longo do raio, posição ao longo da lâmina medida como z, fator do
+       tamanho do pixel). Com th = 0 é exatamente o plano paralelo à parede de antes. */
+    'vec3 paneHit(float sx,vec4 b,float g,float th){',
+    '  float zc=(b.x+b.y)*.5,Xc=uW-g,c=cos(th),s=sin(th);',
+    '  float den=c*sx-s;if(abs(den)<1e-4)return vec3(-1.,0.,1.);',
+    '  float tp=(c*Xc-s*(uCam-zc))/den;',
+    '  return vec3(tp,zc-s*(tp*sx-Xc)+c*(uCam-tp-zc),abs(den));',
+    '}',
+    'float paneTilt(float sz){return uWallG>.5?sz-2.:0.;}',
+    'vec2 glass(vec2 d,float s,vec4 b,float g,float th,float vis,float mir,float soft,out vec4 L,out vec2 F){',
     '  L=vec4(0.);F=vec2(1.);',
-    '  float sx=s*d.x;if(sx<1e-4)return vec2(0.);',
+    '  float sx=s*d.x;if(th==0.&&sx<1e-4)return vec2(0.);',
     '  float z0=b.x,z1=b.y,y0=b.z,y1=b.w;',
-    '  float X=uW-g;float tp=X/sx;float z=uCam-tp;',
+    '  vec3 ph=paneHit(sx,b,g,th);if(ph.x<=0.)return vec2(0.);',
+    '  float tp=ph.x;float z=ph.y;',
     '  float zc=z1+GLASS_LINK;',
     '  if(z<z0-24.||z>zc+6.)return vec2(0.);',
     '  float y=EYE+tp*d.y;if(mir>.5)y=2.*FLOOR-y;',
     '  if(y<y0-6.||y>y1+6.)return vec2(0.);',
-    '  float fy=tp/uF+soft;float fz=tp*tp/(X*uF)+soft;',
+    '  float fy=tp/uF+soft;float fz=tp/(uF*max(ph.z,.03))+soft;',
     '  float dz=min(z-z0,z1-z);float dy=min(y-y0,y1-y);',
     '  L=vec4(z,y,dz,dy);F=vec2(fz,fy);',
     '  float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
@@ -459,7 +480,8 @@
     // b: retângulo; st: (afastamento, visibilidade, solta, tipo + semente) — ver panelUniforms.
     'void wallPick(inout float best,inout vec4 Z,inout vec4 S,float iv,float dy,float mir,vec4 b,vec4 st){',
     '  if(st.y<.01)return;',
-    '  float tp=(uW-st.x)*iv;float z=uCam-tp;float y=EYE+tp*dy;if(mir>.5)y=2.*FLOOR-y;',
+    '  vec3 ph=paneHit(1./iv,b,st.x,paneTilt(st.z));if(ph.x<=0.)return;',
+    '  float tp=ph.x;float z=ph.y;float y=EYE+tp*dy;if(mir>.5)y=2.*FLOOR-y;',
     '  if(z<b.x-24.||z>b.y+GLASS_LINK+6.||y<b.z-6.||y>b.w+6.)return;',
     '  float sc=z>b.x&&z<b.y?tp:tp+1e5;',
     '  if(sc<best){best=sc;Z=b;S=st;}',
@@ -703,7 +725,7 @@
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
     '  if(best>=1e9){S=vec4(0.);return vec2(0.);}',
-    '  return glass(d,d.x>0.?1.:-1.,Z,S.x,S.y,mir,soft,L,F);',
+    '  return glass(d,d.x>0.?1.:-1.,Z,S.x,paneTilt(S.z),S.y,mir,soft,L,F);',
     '}',
 
     'void main(){',
@@ -1078,7 +1100,9 @@
     '    if(S.y>.01){wallFace(col,d,Z,S,L,F,cq,ce);cs=S;}',
     '    if(cs.y>.01){',
     '      vec2 xd=S.y>.01?vec2(d.x>0.?-1.:1.,0.):vec2(0.,1.);',
-    '      float cv=S.y>.01?abs(d.x)/length(vec3(d,1.)):ce.z/max(ce.w,1e-4);',
+    // Lâmina inclinada: o cosseno usa a normal girada (com th = 0, o mesmo de antes).
+    '      float thv=paneTilt(S.z);',
+    '      float cv=S.y>.01?abs(cos(thv)*abs(d.x)-sin(thv))/length(vec3(d,1.)):ce.z/max(ce.w,1e-4);',
     '      screenFace(col,cq.xy,cq.zw,ce.xy,ce.zw,cs,S.y>.01?1.:K_CEIL,xd,cv,S.y>.01?0.:1.);',
     '    }',
     // Borda da tela da parede do lado da saída, acesa pela luz.
