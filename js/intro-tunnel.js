@@ -424,9 +424,12 @@
     'const float PG_SHADOW=.30;const float PG_INK=.3;',
     // Lâminas das paredes de vidro: cor quente da saída e do céu refletidas, força do reflexo
     // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
-    'const vec3 GL_WARM=vec3(1.,.80,.60);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
+    'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
-    'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
+    'const float GL_FLOOR=.35;',
+    // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
+    // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
+    'const float GL_SHADE=.3;const float GL_CAUST=.06;const float GL_SPILL=.05;',          // força do reflexo das lâminas no piso
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -511,18 +514,22 @@
     '}',
     // Luz da tela na parede e no piso: brilho frio ao redor e, nas soltas, a sombra na parede
     // (a luz vem da saída: a sombra cai do lado da câmera). Retorna (sombra, brilho).
-    'vec2 panelLight(vec3 P,vec4 b,vec4 st){',
-    '  if(st.y<.01)return vec2(0.);',
+    // Terceiro valor (paredes de vidro): a luz que atravessa as bordas do vidro se concentra num
+    // contorno claro e fino em volta da sombra (cáustica).
+    'vec3 panelLight(vec3 P,vec4 b,vec4 st){',
+    '  if(st.y<.01)return vec3(0.);',
     '  vec2 c=vec2(b.x+b.y,b.z+b.w)*.5,h=vec2(b.y-b.x,b.w-b.z)*.5;',
     '  float o=length(vec3(max(abs(P.zy-c)-h,0.),uW-abs(P.x)));',
     '  float gl=exp(-o/(14.+st.x*.6))*st.y;',
-    '  if(st.z<.5)return vec2(0.,gl);',
+    '  if(st.z<.5)return vec3(0.,gl,0.);',
     '  float f=(uW-st.x)/uW;vec2 e=abs(vec2(P.z*f,430.+(P.y-430.)*f)-c)-h;',
     '  float pen=3.+st.x*.5;',
-    '  return vec2((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl);',
+    '  float sd=length(max(e,0.))+min(max(e.x,e.y),0.);',
+    '  float ca=uWallG>.5?exp(-abs(sd)/(5.+pen*.8))*st.y:0.;',
+    '  return vec3((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl,ca);',
     '}',
-    'vec2 wallLight(bool r,vec3 P){',
-    '  vec2 o=vec2(0.);',
+    'vec3 wallLight(bool r,vec3 P){',
+    '  vec3 o=vec3(0.);',
     '  for(int i=0;i<SLOTS;i++)o=max(o,panelLight(P,r?uPB[i]:uPB[i+SLOTS],r?uPS[i]:uPS[i+SLOTS]));',
     '  return o;',
     '}',
@@ -610,7 +617,7 @@
     // Reflexo no vidro (paredes de vidro): a luz quente da saída do lado voltado para ela e o
     // azul do céu do outro, mais forte quando a lâmina é vista de lado (Fresnel) e num degradê
     // mais claro no alto.
-    '    body+=(lin(GL_WARM)*tw*tw*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*cl;',
+    '    body+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*cl;',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
@@ -967,7 +974,7 @@
     '    float ex=ENTRY>0.?pow(max(uCam/2400.,1.),-1.25):1.;',
     '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
     '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
-    '    col+=(lin(GL_WARM)*tw*tw*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
+    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
     '    col+=lin(GL_EDGEC)*((line(ez0,.5,fp)*1.25+line(ez1,.5,fp)*.6+line(eyy,.45,fp)*1.1)*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5)*lo*ex;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
@@ -1017,9 +1024,13 @@
     // Paredes de vidro: a sombra da tela solta na parede mostra que ela está desprendida; a
     // luz própria fica bem fraca (é vidro, não tela acesa).
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
-    '    vec2 wl=wallLight(P.x>0.,P);',
-    '    col*=1.-.42*wl.x*uTech*surf*(1.-.45*uWallG);',
+    '    vec3 wl=wallLight(P.x>0.,P);',
+    // Vidro: sombra bem leve (a luz passa) e levemente fria; contorno claro da luz que passa
+    // pelas bordas; brilho ciano das bordas acesas espalhado na parede e no piso próximos.
+    '    col*=1.-.42*wl.x*uTech*surf*mix(1.,GL_SHADE,uWallG);',
+    '    col*=mix(vec3(1.),vec3(.94,.98,1.06),wl.x*surf*uWallG*uTech);',
     '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel)*(1.-.8*uWallG);',
+    '    col+=lin(GL_EDGEC)*(wl.y*GL_SPILL+wl.z*surf*GL_CAUST)*uTech*uWallG;',
     '    col*=1.-.14*wl.y*uPanel*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
