@@ -1026,7 +1026,9 @@
     '  if(surf==1.&&uGlow>.5)bm=exp(-(FLOOR-P.y)/16.)*.10+exp(-(FLOOR-P.y)/70.)*.025;',
     /* Estrutura contínua (celular, uStruct): no lugar dos arcos repetidos ao longo do corpo, a
        luz corre no sentido do túnel, embutida nos ombros da abóbada (uma de cada lado), como as linhas do piso: quatro guias contínuas que convergem para a saída. */
-    '  if(uStruct>.5&&surf==2.){float ds=abs(abs(atan(P.x/uW,-(P.y-SPRING)/uV))-.95)*285.;',
+    '  if(uStruct>.5&&surf==2.){float thv=atan(P.x/uW,-(P.y-SPRING)/uV);float ds=abs(abs(thv)-.95)*285.;',
+    // Paredes de vidro: as cinco juntas do teto acendem (centro, intermediárias e ombros).
+    '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;if(abs(sqv)<2.5)ds=min(ds,abs(fract(sqv+.5)-.5)*VAULT_SEAM);}',
     '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
     '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
