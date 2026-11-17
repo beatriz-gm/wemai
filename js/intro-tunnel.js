@@ -1018,7 +1018,7 @@
     // Formação gradual: força das linhas de luz já no começo (antes de acenderem de fato).
     '  float lnL=0.;float fE=uLineE*(LEN+400.);',   // as linhas varrem do fundo até a câmera
     '  float bm=0.;',
-    '  float bslot=0.;',
+    '  float bslot=0.;float kv=0.;',
     '  if(surf==0.){float da=uW-BEAM_EDGE-abs(P.x);',
     '    if(uGlow>.5){bm=line(da,.8,fp)+exp(-abs(da)/(4.+fp*1.1))*.16+exp(-abs(da)/(30.+fp*2.))*.03;bslot=line(abs(da)-2.6,.5,fp);}',
     '    else bm=line(da,1.2,fp)+exp(-abs(da)/(10.+fp*2.))*.22;}',
@@ -1027,11 +1027,11 @@
     /* Estrutura contínua (celular, uStruct): no lugar dos arcos repetidos ao longo do corpo, a
        luz corre no sentido do túnel, embutida nos ombros da abóbada (uma de cada lado), como as linhas do piso: quatro guias contínuas que convergem para a saída. */
     '  if(uStruct>.5&&surf==2.){float thv=atan(P.x/uW,-(P.y-SPRING)/uV);float ds=abs(abs(thv)-.95)*285.;',
-    // Paredes de vidro: as cinco juntas do teto acendem (centro, intermediárias e ombros).
-    '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;if(abs(sqv)<2.5)ds=min(ds,abs(fract(sqv+.5)-.5)*VAULT_SEAM);}',
+    // Paredes de vidro: as sete juntas do teto acendem; kv guarda qual junta, para o pulso alternar.
+    '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;kv=floor(sqv+.5);if(abs(kv)<3.5)ds=min(ds,abs(sqv-kv)*VAULT_SEAM);}',
     '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
-    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED);float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED+.5*abs(mod(kv,2.)));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
     '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
     '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(BEAM_BASE+PULSE_K*pulse);',
