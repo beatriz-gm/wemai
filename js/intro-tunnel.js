@@ -159,7 +159,8 @@
      GLASS_ASSEMBLE = false volta ao movimento anterior (aproximação pela distância da câmera). */
   var GLASS_ASSEMBLE = true, GLASS_BUILD = [.12, .36];
   // Afastamento da parede no início da montagem e na posição final (mínimo + variação).
-  var GLASS_START_G = 75, GLASS_START_VAR = 30, GLASS_END_G = 16, GLASS_END_VAR = 22;
+  // A variação final é desigual (h^1,6): a maioria um pouco afastada, algumas bem soltas.
+  var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80;
   function hashJs(x) { var v = Math.sin(x * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }
   function glassAssembleMotion(seed, p) {
     var h = function (k) { return hashJs(seed * 1.37 + k * 17.13); };
@@ -170,7 +171,7 @@
     var t0 = (GLASS_TILT_MIN + (GLASS_TILT_MAX - GLASS_TILT_MIN) * h(3)) * (h(4) < .5 ? 1 : -1);
     var tF = t0 * (.1 + .25 * h(5));                          // inclinação que fica (camadas)
     var g0 = GLASS_START_G + GLASS_START_VAR * h(6);
-    var gF = GLASS_END_G + GLASS_END_VAR * h(7);               // recuo final, diferente por lâmina
+    var gF = GLASS_END_G + GLASS_END_VAR * Math.pow(h(7), 1.6);               // recuo final, diferente por lâmina
     var u0 = (h(8) < .5 ? -1 : 1) * (40 + 90 * h(9));         // vem de trás ou da frente
     var v0 = (h(10) - .5) * 60;
     var fly = Math.sin(x * Math.PI) * (1 - x);                // leve curva só durante o trajeto
