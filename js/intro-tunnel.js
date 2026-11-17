@@ -149,9 +149,11 @@
      shader as PANEL_SLOTS mais próximas à frente da câmera em cada parede. Surgem depois da
      transição do arco (GLASS_IN) e se aproximam da parede conforme a câmera chega perto delas
      (distância GLASS_APPROACH: de longe, afastadas e inclinadas; perto, alinhadas). */
-  var GLASS_REPS = 2, GLASS_PERIOD = 1215, GLASS_IN = [.16, .26], GLASS_APPROACH = [2400, 500];
+  var GLASS_REPS = 2, GLASS_PERIOD = 1215, GLASS_IN = [.16, .24], GLASS_STAGGER = .12, GLASS_APPROACH = [2400, 500];
   function glassFloatMotion(seed, p, dist) {
-    var a = smoothstepJs(GLASS_IN[0], GLASS_IN[1], p);
+    // Cada lâmina surge no seu tempo (até GLASS_STAGGER depois da primeira), não todas juntas.
+    var a0 = GLASS_IN[0] + GLASS_STAGGER * ((seed * 5.17) % 1);
+    var a = smoothstepJs(a0, a0 + GLASS_IN[1] - GLASS_IN[0], p);
     var near = smoothstepJs(GLASS_APPROACH[0], GLASS_APPROACH[1], dist);
     var far = GLASS_FLOAT_FAR + GLASS_FLOAT_VAR * ((seed * 7.31) % 1);
     var w = p * PANEL_SPEED + seed * 6.283;
@@ -453,7 +455,7 @@
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.72,.90,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
     'const vec3 GL_EDGEC=vec3(.52,.80,1.);const float GL_EDGE_K=1.8;const float GL_HALO=.16;const float GL_GLOW=.07;',
-    'const float GL_THIN=1.15;',           // brilho do fio fino das bordas (o pico do fio de antes)
+    'const float GL_THIN=1.15;const float GL_LAG=.55;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
@@ -605,6 +607,9 @@
     // sz: tamanho; e: distância às bordas nos dois eixos; f: tamanho do pixel nos dois eixos;
     // S: estado (ver panelUniforms).
     // xd: direção da saída no plano da tela (q); fres: cosseno entre o olhar e a normal da tela.
+    // Paredes de vidro: quanto os detalhes do vidro (bordas acesas, halo, reflexos, luz espalhada)
+    // já chegaram neste pixel. Calculado no main; 1 fora da formação.
+    'float gD=1.,gS=1.;',   // gS: a divisão das lâminas da parede (estrutura), antes dos detalhes
     'void screenFace(inout vec3 c,vec2 q0,vec2 sz,vec2 e,vec2 f,vec4 S,float kf,vec2 xd,float cv,float kc){',
     '  float vis=S.y*uTech*kf;',
     '  float kd=floor(S.w),sd=fract(S.w);float dk=step(9.5,kd);kd-=dk*10.;',
@@ -637,7 +642,7 @@
     '    float ceK=kc>.5&&uCeil>.5?CE_FROST:1.;',
     // Paredes de vidro: telas da parede em vidro claro e fino, quase sem fumê nem fosco, o
     // entorno visto através delas; borda mais definida e sem conteúdo de interface.
-    '    float cl=uWallG*(1.-kc);ceK*=1.-.7*cl;',
+    '    float cl=uWallG*(1.-kc)*gD;ceK*=1.-.7*cl;',
     '    vec3 body=mix(c,vec3(lb)*lin(PG_TINT)*1.25,.3*ceK)*mix(1.,PG_SMOKE,ceK)+lin(PG_TINT)*PG_FROST*ceK*(.5+tw);',
     '    body+=lin(PG_SHEEN)*(PG_FRES*fr*(.35+.65*tw)+.035*(1.-smoothstep(0.,.3,abs(uc.x*.6+uc.y-.15))));',
     // Vidro claro: o entorno quase intacto através dele, um leve reflexo frio e uma faixa de
@@ -813,6 +818,14 @@
     '    t=uCam+REVEAL;surf=7.;',
     '  }',
     '  vec3 P=vec3(t*d.x,EYE+t*d.y,uCam-t);',
+    /* Paredes de vidro, formação em etapas: a superfície sai do branco como antes (mL, mais
+       abaixo), e os detalhes do vidro só chegam depois, com o mesmo espalhamento a partir do
+       arco e um atraso (GL_LAG): primeiro o espaço, depois a estrutura, por fim o vidro. */
+    '  if(uForm>.5&&uWallG>.5){float de0=max(uCam-ENTRY,1.);vec2 qa0=vec2(de0*d.x,EYE+de0*d.y);',
+    '    float dB0=abs(length(vec2(qa0.x,(qa0.y-ARC_CY)*(qa0.y<ARC_CY?1.:.75)))-uArcR);',
+    '    float ze0=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
+    '    float fm0=uMat*2.3-(.5*smoothstep(0.,1100.,dB0)+.35*smoothstep(0.,2400.,ze0)+.06);',
+    '    gS=smoothstep(0.,1.,clamp((fm0-GL_LAG*.4)*1.4,0.,1.));gD=smoothstep(0.,1.,clamp((fm0-GL_LAG)*1.6,0.,1.));}',
     '  float fp=t/uF;',                    // tamanho do pixel na superfície (unidades)
 
     // Vão aberto: névoa que se dissolve e deixa ver a paisagem por trás do canvas.
@@ -1004,10 +1017,12 @@
     '    float ex=ENTRY>0.?pow(max(uCam/2400.,1.),-1.25):1.;',
     '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
     '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
-    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
-    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex;',
+    '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex*gD;',
+    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gD;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
+    // Formação: a divisão em lâminas surge depois da superfície (gS).
+    '    col=mix(base,col,gS);',
     '  }',
     '  if(ENTRY>0.)col*=pow(max(uCam/2400.,1.),1.25);',
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
@@ -1070,7 +1085,7 @@
     '    col*=1.-.42*wl.x*uTech*surf*mix(1.,GL_SHADE,uWallG);',
     '    col*=mix(vec3(1.),vec3(.94,.98,1.06),wl.x*surf*uWallG*uTech);',
     '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel)*(1.-.8*uWallG);',
-    '    col+=lin(GL_EDGEC)*(wl.y*GL_SPILL+wl.z*surf*GL_CAUST)*uTech*uWallG;',
+    '    col+=lin(GL_EDGEC)*(wl.y*GL_SPILL+wl.z*surf*GL_CAUST)*uTech*uWallG*gD;',
     '    col*=1.-.14*wl.y*uPanel*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
@@ -1177,7 +1192,7 @@
     // A cor da tela acesa aparece no reflexo.
     '      gr*=K_REFL;',
     '      if(Sm.y>.01)col+=lin(SCREEN_LUM)*(min(gr.x*2.2,1.)*SCREEN_HALO+gr.y*SCREEN_EDGE*.5)*uTech;',
-    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.14*uWallG;',
+    '      if(Sm.y>.01)col+=lin(GL_EDGEC)*gr.y*GL_EDGE_K*.14*uWallG*gD;',
     '      g=max(g,gr);',
     '    }',
     '    if(g.x+g.y>0.){',
