@@ -160,18 +160,20 @@
   var GLASS_ASSEMBLE = true, GLASS_BUILD = [.12, .36];
   // Afastamento da parede no início da montagem e na posição final (mínimo + variação).
   // A variação final é desigual (h^1,6): a maioria um pouco afastada, algumas bem soltas.
-  var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80;
+  var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80, GLASS_END_EXTRA = 80;
   function hashJs(x) { var v = Math.sin(x * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }
-  function glassAssembleMotion(seed, p) {
+  function glassAssembleMotion(seed, p, endK) {
     var h = function (k) { return hashJs(seed * 1.37 + k * 17.13); };
     var dur = .1 + .07 * h(1);
     var d0 = GLASS_BUILD[0] + (GLASS_BUILD[1] - GLASS_BUILD[0] - dur) * h(2);
     var x = Math.min(Math.max((p - d0) / dur, 0), 1);
     var k = 1 - Math.pow(1 - x, 3);                          // chega devagar, sem tranco
     var t0 = (GLASS_TILT_MIN + (GLASS_TILT_MAX - GLASS_TILT_MIN) * h(3)) * (h(4) < .5 ? 1 : -1);
-    var tF = t0 * (.45 + .45 * h(5));                         // inclinação que fica (camadas)
+    var tF = t0 * (.25 + .3 * h(5));                          // inclinação que fica (camadas)
     var g0 = GLASS_START_G + GLASS_START_VAR * h(6);
-    var gF = GLASS_END_G + GLASS_END_VAR * Math.pow(h(7), 1.6);               // recuo final, diferente por lâmina
+    var gF = GLASS_END_G + GLASS_END_VAR * Math.pow(h(7), 1.6);
+    // Perto da saída (endK), parte das lâminas fica ainda mais solta.
+    if (endK > 0 && h(13) < .45) gF += GLASS_END_EXTRA * endK * (.6 + .4 * h(14));               // recuo final, diferente por lâmina
     var u0 = (h(8) < .5 ? -1 : 1) * (40 + 90 * h(9));         // vem de trás ou da frente
     var v0 = (h(10) - .5) * 60;
     var fly = Math.sin(x * Math.PI) * (1 - x);                // leve curva só durante o trajeto
@@ -184,8 +186,8 @@
       v: v0 * (1 - k) + 10 * fly * (h(12) - .5)
     };
   }
-  function glassFloatMotion(seed, p, dist) {
-    if (GLASS_ASSEMBLE) return glassAssembleMotion(seed, p);
+  function glassFloatMotion(seed, p, dist, endK) {
+    if (GLASS_ASSEMBLE) return glassAssembleMotion(seed, p, endK || 0);
     // Cada lâmina surge no seu tempo (até GLASS_STAGGER depois da primeira), não todas juntas.
     var a0 = GLASS_IN[0] + GLASS_STAGGER * ((seed * 5.17) % 1);
     var a = smoothstepJs(a0, a0 + GLASS_IN[1] - GLASS_IN[0], p);
@@ -239,14 +241,15 @@
         var hz = (q[2] - q[1]) * sh[0];
         var cz0 = z0 + (q[2] - q[1]) / 2;
         if (cz0 - hz > cam - 30) return;             // já ficou para trás da câmera
-        lists[side].push({ q: q, seed: seed, sh: sh, hz: hz, cz0: cz0 });
+        var endK = 1 - smoothstepJs(300, 700, q[1] + r * GLASS_PERIOD);   // trecho final, junto à saída
+        lists[side].push({ q: q, seed: seed, sh: sh, hz: hz, cz0: cz0, endK: endK });
       });
     }
     lists.forEach(function (list, side) {
       list.sort(function (a, b) { return b.cz0 - a.cz0; });   // mais perto da câmera primeiro
       for (var k = 0; k < PANEL_SLOTS && k < list.length; k++) {
         var o = list[k], q = o.q, sh = o.sh;
-        var m = glassFloatMotion(o.seed, p, cam - o.cz0);
+        var m = glassFloatMotion(o.seed, p, cam - o.cz0, o.endK);
         var cz = o.cz0 + m.u;
         var hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2, cy = (q[3] + q[4]) / 2 + m.v;
         if (sh[1] !== null) { cy = (sh[1] + sh[2]) / 2 + m.v; hy = (sh[2] - sh[1]) / 2; }
