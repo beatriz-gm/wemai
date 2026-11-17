@@ -1108,7 +1108,19 @@
     '    mL=smoothstep(0.,1.,clamp(uMat*1.9-dl,0.,1.));',
     // Experimento vidro: saída do branco em ritmo constante (sem segurar o branco e depois
     // escurecer de uma vez); o atraso por profundidade e superfície continua, mais curto.
-    '    if(uWallG>.5)mL=clamp(uMat*1.5-dl*.45,0.,1.);',
+    // Experimento vidro: o túnel nasce do próprio arco. A matéria aparece primeiro onde o arco
+    // está (plano da entrada, z = ENTRY), com o tom dele, e se espalha dali em direção à câmera
+    // e à saída; o arco vira o começo das paredes, sem ser uma peça sobre elas.
+    '    if(uWallG>.5){',
+    // Para dentro (em direção à saída) a matéria avança mais rápido, para o fundo não ficar
+    // branco como o vão de uma moldura.
+    // Nasce na curva da abóbada (onde o arco está) e só depois desce pelas paredes até o piso,
+    // como o arco se prolongando, sem formar o contorno de uma porta.
+    '      float ze=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
+    '      float dg=.62*smoothstep(0.,2400.,ze)+.25*smoothstep(0.,700.,ze)+.16;',
+    '      dg+=.28*smoothstep(SPRING-40.,FLOOR,P.y);',
+    '      mL=clamp(uMat*2.3-dg,0.,1.);',
+    '    }',
     '  }',
     '  col=mix(white,col,mL);',
     '  if(uForm>.5&&lnL>0.)col=mix(col,vec3(.60,.85,1.),min(lnL,1.)*(1.-mL)*.6);',
