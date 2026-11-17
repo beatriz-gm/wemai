@@ -377,6 +377,8 @@
 
     // Linha fina com antialiasing analítico: d = distância à linha, fp = tamanho do pixel.
     'float line(float d,float hw,float fp){float w=max(hw,fp*.5);return (hw/w)*(1.-smoothstep(w,w+fp,abs(d)));}',
+    // Fio de luz fino (cerca de um pixel) com brilho cheio, para as bordas das lâminas de vidro.
+    'float lineT(float d,float fp){return 1.-smoothstep(0.,fp*.85,abs(d));}',
     'float grid(float c,float s,float off,float hw,float fp){float q=c-off;return line(q-s*floor(q/s+.5),hw,fp);}',
     // Hash só com aritmética (seno é caro em GPU de celular).
     'float hash(vec2 p){vec3 q=fract(p.xyx*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}',
@@ -451,6 +453,7 @@
     'const vec3 GL_WARM=vec3(1.,.90,.76);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.06;',
     // Iluminação como no storyboard: bordas bem acesas em ciano-branco, com halo maior.
     'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.55;const float GL_HALO=.05;',
+    'const float GL_THIN=.6;',           // brilho do fio fino das bordas (o pico do fio de antes)
     'const float GL_FLOOR=.35;',          // força do reflexo das lâminas no piso
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
@@ -647,12 +650,13 @@
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
     '    float sl=.3+.7*max(dot(en,xd),0.);',
-    '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins;',
+    // Paredes de vidro: sem o bisel largo (a borda fica só no fio fino de luz).
+    '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins*(1.-cl);',
     '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis*(1.+.8*cl);',
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
-    '    c+=lin(GL_EDGEC)*(line(ed,.5,fm)*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl))*vis*cl;',
+    '    c+=lin(GL_EDGEC)*(lineT(ed,fm)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl))*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
@@ -1000,7 +1004,7 @@
     '    float tw=clamp(1.-ez0/max(c1.z-c1.y,1.),0.,1.);',
     '    float vy=up>.5?(P.y-SPRING)/max(ys-SPRING,1.):(P.y-max(ys,SPRING))/max(FLOOR-max(ys,SPRING),1.);',
     '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*lo*ex;',
-    '    col+=lin(GL_EDGEC)*((line(ez0,.5,fp)*1.25+line(ez1,.5,fp)*.6+line(eyy,.45,fp)*1.1)*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5)*lo*ex;',
+    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5)*lo*ex;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     '  }',
