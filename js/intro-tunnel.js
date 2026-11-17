@@ -169,7 +169,7 @@
     var x = Math.min(Math.max((p - d0) / dur, 0), 1);
     var k = 1 - Math.pow(1 - x, 3);                          // chega devagar, sem tranco
     var t0 = (GLASS_TILT_MIN + (GLASS_TILT_MAX - GLASS_TILT_MIN) * h(3)) * (h(4) < .5 ? 1 : -1);
-    var tF = t0 * (.1 + .25 * h(5));                          // inclinação que fica (camadas)
+    var tF = t0 * (.45 + .45 * h(5));                         // inclinação que fica (camadas)
     var g0 = GLASS_START_G + GLASS_START_VAR * h(6);
     var gF = GLASS_END_G + GLASS_END_VAR * Math.pow(h(7), 1.6);               // recuo final, diferente por lâmina
     var u0 = (h(8) < .5 ? -1 : 1) * (40 + 90 * h(9));         // vem de trás ou da frente
