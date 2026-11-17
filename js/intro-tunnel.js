@@ -130,6 +130,25 @@
      visibilidade, se é solta, e o deslocamento ao longo do comprimento (u) e da altura (v).
      Embutida: acende no lugar, com uma leve oscilação enquanto liga. Solta: sai da
      superfície e flutua de leve; pode voltar para dentro (out > 0) ou se fixar (out < 0). */
+  /* Paredes de vidro (experimento): toda tela da parede é uma lâmina solta. Surge já afastada
+     (GLASS_FLOAT_FAR, varia por tela), flutua de leve e se aproxima devagar da parede ao
+     longo da travessia, sem encostar (GLASS_FLOAT_NEAR). Não volta para dentro nem se fixa. */
+  var GLASS_FLOAT_FAR = 40, GLASS_FLOAT_VAR = 14, GLASS_FLOAT_NEAR = 12, GLASS_FLOAT_TIME = .45;
+  var GLASS_FLOAT_SIZE = 1.3;   // tamanho das lâminas em relação às telas
+  function glassFloatMotion(tin, seed, p) {
+    var a = smoothstepJs(tin, tin + .08, p);
+    var near = smoothstepJs(tin, tin + GLASS_FLOAT_TIME, p);
+    var far = GLASS_FLOAT_FAR + GLASS_FLOAT_VAR * ((seed * 7.31) % 1);
+    var w = p * PANEL_SPEED + seed * 6.283;
+    return {
+      g: far + (GLASS_FLOAT_NEAR - far) * near + 2.5 * Math.sin(w * 1.3),
+      vis: a,
+      loose: 1,
+      u: 6 * Math.sin(w * .6 + 2),
+      v: 3.5 * Math.sin(w * .8 + 1)
+    };
+  }
+
   function panelMotion(gap, tin, out, seed, p) {
     var back = out > 0 && out < 2 ? out : 2;
     var settle = out < 0 ? smoothstepJs(-out, -out + .08, p) : 0;
@@ -152,7 +171,7 @@
      de cima e de baixo; teto: arco inicial e final, z inicial e final). state: afastamento,
      visibilidade, solta = 1, tipo + 10 se azulada + semente. Paredes: posições
      0 a PANEL_SLOTS − 1 à direita, as seguintes à esquerda. */
-  function panelUniforms(p, box, state, cbox, cstate) {
+  function panelUniforms(p, box, state, cbox, cstate, wallGlass) {
     var slot = [0, PANEL_SLOTS];
     box.fill(0); state.fill(0); cbox.fill(0); cstate.fill(0);
     WALL_PANELS.forEach(function (q, i) {
@@ -160,8 +179,14 @@
       var k = slot[side]++;
       if (k >= PANEL_SLOTS * (side + 1)) return;
       var seed = PANEL_KINDS[i % PANEL_KINDS.length] + 10 * q[8] + ((i * .618) % 1) * .98;
-      var m = panelMotion(q[5], q[6], q[7], seed, p);
+      var m = wallGlass ? glassFloatMotion(q[6], seed, p) : panelMotion(q[5], q[6], q[7], seed, p);
       var z0 = q[1] * PANEL_DEPTH;
+      if (wallGlass) {
+        // Lâminas maiores que as telas (mais perto das da referência), a partir do centro.
+        var hz = (q[2] - q[1]) * GLASS_FLOAT_SIZE / 2, hy = (q[4] - q[3]) * GLASS_FLOAT_SIZE / 2;
+        var cz = z0 + (q[2] - q[1]) / 2 + m.u, cy = (q[3] + q[4]) / 2 + m.v;
+        box.set([cz - hz, cz + hz, cy - hy, cy + hy], k * 4);
+      } else
       box.set([z0 + m.u, z0 + q[2] - q[1] + m.u, q[3] + m.v, q[4] + m.v], k * 4);
       state.set([m.g, m.vis, m.loose, seed], k * 4);
     });
@@ -425,6 +450,8 @@
     '  float yc=y0+(y1-y0)*.32;',
     '  st=max(st,line(y-yc,.6,fy)*step(z1,z)*(1.-smoothstep(z1,zc,z))*.55*K_MARK);',
     '  st=max(st,(1.-smoothstep(2.6,2.6+fy,length(vec2((z-zc)*fy/fz,y-yc))))*.6*K_MARK);',
+    // Paredes de vidro: tela flutuante é só uma lâmina, sem marcador nem linha de conexão.
+    '  if(uWallG>.5){st=fr*.3*step(z,z1+2.);body*=step(z,z1+2.);}',
     '  return vec2(body,st)*vis;',
     '}',
     // Teste barato em cada tela; o desenho completo é feito só para a mais próxima da câmera.
@@ -530,19 +557,25 @@
     '    float fr=pow(1.-clamp(cv,0.,1.),5.);',
     '    float lb=dot(c,vec3(.2126,.7152,.0722));',
     '    float ceK=kc>.5&&uCeil>.5?CE_FROST:1.;',
+    // Paredes de vidro: telas da parede em vidro claro e fino, quase sem fumê nem fosco, o
+    // entorno visto através delas; borda mais definida e sem conteúdo de interface.
+    '    float cl=uWallG*(1.-kc);ceK*=1.-.7*cl;',
     '    vec3 body=mix(c,vec3(lb)*lin(PG_TINT)*1.25,.3*ceK)*mix(1.,PG_SMOKE,ceK)+lin(PG_TINT)*PG_FROST*ceK*(.5+tw);',
     '    body+=lin(PG_SHEEN)*(PG_FRES*fr*(.35+.65*tw)+.035*(1.-smoothstep(0.,.3,abs(uc.x*.6+uc.y-.15))));',
+    // Vidro claro: o entorno quase intacto através dele, um leve reflexo frio e uma faixa de
+    // brilho diagonal bem suave.
+    '    body=mix(body,c*.94+lin(PG_SHEEN)*(.10*fr*(.4+.6*tw)+.018*(1.-smoothstep(0.,.25,abs(uc.x*.6+uc.y-.1)))),cl);',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
     '    float sl=.3+.7*max(dot(en,xd),0.);',
     '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins;',
-    '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis;',
+    '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis*(1.+.8*cl);',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
-    '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis;',
+    '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
     '    vec2 q=q0-vec2(10.,12.);vec2 bb=sz-vec2(20.,22.);',
-    '    float lod=1.-smoothstep(2.5,7.,fm);',
+    '    float lod=(1.-smoothstep(2.5,7.,fm))*(1.-cl);',
     // Teto: sem conteúdo; um fio de luz fino acompanha a curvatura junto à borda da saída.
     '    if(kc>.5&&uCeil>.5){',
     '      c+=lum*line(q0.y-(sz.y-6.),.45,f.y)*smoothstep(4.,10.,q0.x)*smoothstep(4.,10.,sz.x-q0.x)*CE_LINE*vis;',
@@ -584,7 +617,8 @@
     // S: estado; L e F vêm de glass.
     'void wallFace(inout vec3 c,vec2 d,vec4 b,vec4 S,vec4 L,vec2 F,out vec4 q,out vec4 e){',
     '  float s=d.x>0.?1.:-1.;float z=L.x,y=L.y,dz=L.z,dy=L.w,fz=F.x,fy=F.y;',
-    '  if(S.z>.5){',
+    // Paredes de vidro: lâmina fina, sem a borda de trás da espessura (não vira bloco).
+    '  if(S.z>.5&&uWallG<.5){',
     '    float ins=smoothstep(-fz,fz,dz)*smoothstep(-fy,fy,dy);',
     '    float tp2=(uW-S.x+PANEL_T)/abs(d.x);float z2=uCam-tp2,y2=EYE+tp2*d.y;',
     '    float bk=smoothstep(-fz,fz,min(z2-b.x,b.y-z2))*smoothstep(-fy,fy,min(y2-b.z,b.w-y2));',
@@ -667,8 +701,6 @@
     '  return mix(c,cc,k*mix(.6,.9,lb))+vec3(.62,.88,1.)*rl.x*RIM_K*.16*(1.-.8*uWallG*lb);}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
-    // Paredes de vidro: as telas da parede saem (a própria parede é feita de lâminas).
-    '  if(uWallG>.5)return vec2(0.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
     '  if(best>=1e9){S=vec4(0.);return vec2(0.);}',
     '  return glass(d,d.x>0.?1.:-1.,Z,S.x,S.y,mir,soft,L,F);',
@@ -925,10 +957,12 @@
     '    col=mix(col,lin(TECH_LINE),min(ln*.20,1.)*K_LINES*nearK*uTech*techReveal(P.z));',
     '  }',
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
-    '  if(uTech>.001&&surf<=1.&&P.z>0.&&uWallG<.5){',
+    // Paredes de vidro: a sombra da tela solta na parede mostra que ela está desprendida; a
+    // luz própria fica bem fraca (é vidro, não tela acesa).
+    '  if(uTech>.001&&surf<=1.&&P.z>0.){',
     '    vec2 wl=wallLight(P.x>0.,P);',
-    '    col*=1.-.42*wl.x*uTech*surf;',
-    '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel);',
+    '    col*=1.-.42*wl.x*uTech*surf*(1.-.45*uWallG);',
+    '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel)*(1.-.8*uWallG);',
     '    col*=1.-.14*wl.y*uPanel*uTech;',
     '  }',
     // Telas no teto (a face da tela é desenhada junto com as das paredes, mais adiante).
@@ -1324,7 +1358,7 @@
       gl.uniform1f(u.uStruct, s.struct || 0);
       gl.uniform1f(u.uVault, s.vault || 0);
       gl.uniform1f(u.uWallG, s.wallGlass || 0);
-      panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
+      panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState, s.wallGlass > .5);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);
       gl.uniform4fv(u.uPB, panelBox);
