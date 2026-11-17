@@ -154,6 +154,18 @@
   // As pontas (abaixo do centro) somem devagar enquanto a forma da boca aparece; as laterais
   // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
   if (COARSE) P.tips = [0, .035];
+  /* Experimento vidro: transição contínua do arco para o túnel. As pontas não são cortadas:
+     somem devagar enquanto a borda desce até o piso (encontro com a forma do túnel); o arco
+     muda de cor direto do azul da marca para o azul da borda do túnel (sem clarear antes) e só
+     depois se funde na borda; o túnel sai do branco ao mesmo tempo, em ritmo constante. */
+  if (WALL_GLASS) {
+    P.tips = [.03, .19];
+    P.rim = [.04, .16];
+    P.arcMerge = [.1, .22];
+    P.rimDown = [.06, .2];
+    P.matter = [.02, .5];
+  }
+  var P_ARC_TONE = [0, .15];   // experimento vidro: cor do arco, do azul da marca ao da borda
 
   /* Saída distante (celular, referência tuneltech, frames 04–06). O arco da logo deixa de ser a
      própria saída: ele forma a entrada do túnel (plano z = ENTRY), perto da câmera, e a saída
@@ -174,6 +186,8 @@
   // Teste "abertura direta": o arco vira luz ciano, a mesma da borda da boca do túnel, em que
   // se transforma (antes, azul do túnel: #5B86C2; antes ainda, pedra clara: #D6C9B7).
   var ARC_STONE = { fill: '#9EE3FF', face: ['#F7FDFF', '#C6F0FF', '#82D8FF'] };
+  // Experimento vidro: o azul da borda acesa do túnel, sem passar pelo ciano claro.
+  if (WALL_GLASS) ARC_STONE = { fill: '#3A92E6', face: ['#8CCBFF', '#4F9EE8', '#2C74C2'] };
   // Centro do arco (= centro da abóbada) e raio médio da faixa do arco, para o crescimento.
   var ARC_CY = 346.5, ARC_MID_R = (OUTER_R + 252) / 2;
 
@@ -377,7 +391,8 @@
       : 1 - easeInOutSine(phase(t, T.wordmarkOut));
     face.style.opacity = scene.tunnel.light.toFixed(4);   // a borda interna do arco ganha luz
     setTips(smooth(p, P.tips));
-    setArcTone(0);           // o arco mantém a cor da logo até se dissolver na borda
+    // O arco mantém a cor da logo até se dissolver na borda (experimento vidro: muda de cor antes).
+    setArcTone(WALL_GLASS ? smooth(p, P_ARC_TONE) : 0);
     arc.style.opacity = (1 - smooth(p, P.arcMerge)).toFixed(4);
     setArcGrow(smooth(p, P.arcGrow));
 
