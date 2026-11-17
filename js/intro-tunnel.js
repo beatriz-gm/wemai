@@ -1028,10 +1028,12 @@
     '    if(uWallG>.5){float sqv=thv*285./VAULT_SEAM;kv=floor(sqv+.5);if(abs(kv)<3.5)ds=min(ds,abs(sqv-kv)*VAULT_SEAM);}',
     '    bm+=line(ds,.8,fp)+exp(-ds/(4.+fp*1.1))*.16+exp(-ds/(30.+fp*2.))*.03;bslot=max(bslot,line(ds-2.6,.5,fp));}',
     // Pulso de luz que corre pelos feixes em direção à saída (mais rápido que a câmera).
-    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED+.5*abs(mod(kv,2.)));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
+    '  float pf=fract(P.z/PULSE_GAP+uProg*PULSE_SPEED+(uWallG>.5&&surf==2.?fract((kv+3.)*.43):0.));float pulse=exp(-pf*9.)+exp(-(1.-pf)*40.)*.5;',
     '  col*=1.-bslot*LG_SLOT*inT*uStrip;',
     '  float bnear=uGlow>.5?(.25+.75*smoothstep(200.,1200.,t))*mix(1.,LG_FAR,smoothstep(900.,2400.,t)):.45+.55*smoothstep(150.,900.,t);',
-    '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(BEAM_BASE+PULSE_K*pulse);',
+    '  float bBase=uWallG>.5&&surf==2.?0.:BEAM_BASE;',
+    // Paredes de vidro: no teto cada linha só acende com o pulso, com atraso próprio por linha.
+    '  col+=lin(BEAM)*bm*inT*uStrip*BEAM_K*bnear*(bBase+PULSE_K*pulse);',
     '  if(uForm>.5)lnL+=bm*inT*bnear*(1.-smoothstep(fE-400.,fE,P.z))*uLineE*.8;',
     // Lateral do vão e parede do fundo: mesmo tom quente das paredes do túnel e o mesmo
     // brilho suave junto ao piso (sem o friso), para não lerem como pilastra solta.
