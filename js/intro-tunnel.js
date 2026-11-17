@@ -422,6 +422,10 @@
     'const float PG_SMOKE=.78;const vec3 PG_TINT=vec3(.70,.80,.94);const float PG_FROST=.17;',
     'const vec3 PG_SHEEN=vec3(.80,.90,1.);const float PG_FRES=.5;const float PG_EDGE=1.1;',
     'const float PG_SHADOW=.30;const float PG_INK=.3;',
+    // Lâminas das paredes de vidro: cor quente da saída e do céu refletidas, força do reflexo
+    // visto de lado e do degradê no alto; cor, força e halo do fio de luz das bordas.
+    'const vec3 GL_WARM=vec3(1.,.80,.60);const vec3 GL_SKY=vec3(.62,.80,1.);const float GL_REF=.10;const float GL_TOP=.04;',
+    'const vec3 GL_EDGEC=vec3(.72,.92,1.);const float GL_EDGE_K=.7;const float GL_HALO=.05;',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -602,12 +606,20 @@
     // Vidro claro: o entorno quase intacto através dele, um leve reflexo frio e uma faixa de
     // brilho diagonal bem suave.
     '    body=mix(body,c*.94+lin(PG_SHEEN)*(.10*fr*(.4+.6*tw)+.018*(1.-smoothstep(0.,.25,abs(uc.x*.6+uc.y-.1)))),cl);',
+    // Reflexo no vidro (paredes de vidro): a luz quente da saída do lado voltado para ela e o
+    // azul do céu do outro, mais forte quando a lâmina é vista de lado (Fresnel) e num degradê
+    // mais claro no alto.
+    '    body+=(lin(GL_WARM)*tw*tw*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*cl;',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
     '    float sl=.3+.7*max(dot(en,xd),0.);',
     '    float bev=(1.-smoothstep(0.,2.2+fm,ed))*ins;',
     '    c+=lin(PG_SHEEN)*(bev*.4+line(ed,.45,fm)*.8)*sl*PG_EDGE*K_EDGE*vis*(1.+.8*cl);',
+    // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
+    // alto, com um halo ciano leve dos dois lados da borda.
+    '    float etop=en.y<0.?1.4:1.;',
+    '    c+=lin(GL_EDGEC)*(line(ed,.5,fm)*(.35+.9*sl)*etop*GL_EDGE_K+exp(-abs(ed)/(4.+fm))*GL_HALO*(.5+sl))*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
