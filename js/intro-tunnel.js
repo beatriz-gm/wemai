@@ -59,9 +59,6 @@
 
   var VERTEX = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
 
-  // Material CC0 (ambientCG Concrete034), 1024²: data = R albedo, G rugosidade, B altura.
-  var TEXTURES = { data: 'img/tunel-mineral-data.jpg', normal: 'img/tunel-mineral-normal.jpg' };
-
   /* Telas na parede: lado (1 direita, −1 esquerda), z inicial e final, y de cima e de baixo,
      quanto se afastam da parede (abaixo de LOOSE_MIN, a tela é embutida na parede), quando
      surgem, o que fazem depois (progresso da câmera: positivo, quando voltam para dentro da
@@ -1360,9 +1357,7 @@
       if (img.decode) img.decode().then(upload, uploadOnLoad);
       else img.onload = upload;
     }
-    // Teste "painéis de vidro": a textura de microcimento não é usada (nem baixada).
-    // loadTexture(TEXTURES.data, 1, dataTex);
-    // loadTexture(TEXTURES.normal, 2, normalTex);
+    // Teste "painéis de vidro": a textura de microcimento não é usada (os arquivos foram removidos de img/).
 
     // A foto, reduzida, vira textura do reflexo (sem mipmaps) e uma miniatura lida no
     // processador, de onde sai a cor de cada faixa de luz da abertura.

@@ -48,7 +48,7 @@
     })();
   </script>
 
-  <link rel="preload" as="image" href="img/home-paisagem.webp" type="image/webp" fetchpriority="high">
+  <link rel="preload" as="image" href="img/paisagemmobile.webp" type="image/webp" fetchpriority="high">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -111,7 +111,7 @@
     <!-- ============================================================
          01 — Abertura e Home
          Camadas independentes, de trás para frente:
-         1. paisagem (img/home-paisagem.webp)
+         1. paisagem (img/paisagemmobile.webp)
          2. arquitetura do portal (WebGL) + logo original (SVG), controlados por js/intro.js
          3. véu de leitura
          4. interface
@@ -120,8 +120,8 @@
 
       <div class="scene" aria-hidden="true">
         <!-- Paisagem em dois planos da mesma imagem: céu/montanhas (distante) e água próxima. -->
-        <img class="scene__landscape" src="img/home-paisagem.webp" alt="" width="941" height="1672" fetchpriority="high" decoding="async" data-landscape>
-        <img class="scene__landscape scene__landscape--near" src="img/home-paisagem.webp" alt="" width="941" height="1672" decoding="async" data-landscape-near>
+        <img class="scene__landscape" src="img/paisagemmobile.webp" alt="" width="941" height="1672" fetchpriority="high" decoding="async" data-landscape>
+        <img class="scene__landscape scene__landscape--near" src="img/paisagemmobile.webp" alt="" width="941" height="1672" decoding="async" data-landscape-near>
 
         <!--
           Portal. Paths da logo copiados sem alteração de brand/wemai-logo-principal.svg.
