@@ -824,7 +824,7 @@
     '  if(uForm>.5&&uWallG>.5){float de0=max(uCam-ENTRY,1.);vec2 qa0=vec2(de0*d.x,EYE+de0*d.y);',
     '    float dB0=abs(length(vec2(qa0.x,(qa0.y-ARC_CY)*(qa0.y<ARC_CY?1.:.75)))-uArcR);',
     '    float ze0=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
-    '    float fm0=uMat*2.3-(.5*smoothstep(0.,1100.,dB0)+.35*smoothstep(0.,2400.,ze0)+.06);',
+    '    float fm0=uMat*2.3-(.2*smoothstep(0.,2400.,dB0)+.35*smoothstep(0.,2400.,ze0)+.18);',
     '    gF=fm0;gZ=.35*smoothstep(0.,2400.,ze0);',
     '    gS=smoothstep(0.,1.,clamp((fm0-GL_LAG*.4)*1.4,0.,1.));gD=smoothstep(0.,1.,clamp((fm0-GL_LAG)*1.6,0.,1.));}',
     '  float fp=t/uF;',                    // tamanho do pixel na superfície (unidades)
@@ -1226,7 +1226,7 @@
     // Primeira luz: halo quente ao redor do arco, antes de a matéria aparecer.
     '  float halo=exp(-pow(length(vec2(P.x,P.y-ARC_CY))/ARC_R-1.,2.)*3.)*step(abs(P.z),1.);',
     // Exposição: tudo começa branco e ganha tom e contraste progressivamente.
-    '  vec3 white=mix(vec3(1.),HALO,uLight*halo*.45);',
+    '  vec3 white=mix(vec3(1.),HALO,uLight*halo*mix(.45,.12,uWallG));',   // vidro: sem clarão em volta do arco
     /* Formação gradual (celular): em vez de o túnel inteiro sair do branco de uma vez, cada
        parte se revela no seu tempo: primeiro o fundo, junto à saída, avançando em direção à
        câmera (profundidade crescente); abóbada antes das paredes, e o piso (com o reflexo) por
@@ -1255,7 +1255,7 @@
     '      float de=max(uCam-ENTRY,1.);vec2 qa=vec2(de*d.x,EYE+de*d.y);',
     '      float dB=abs(length(vec2(qa.x,(qa.y-ARC_CY)*(qa.y<ARC_CY?1.:.75)))-uArcR);',
     '      float ze=P.z<ENTRY?(ENTRY-P.z)*.3:P.z-ENTRY;',
-    '      float dg=.5*smoothstep(0.,1100.,dB)+.35*smoothstep(0.,2400.,ze)+.06;',
+    '      float dg=.2*smoothstep(0.,2400.,dB)+.35*smoothstep(0.,2400.,ze)+.18;',
     '      mL=clamp(uMat*2.3-dg,0.,1.);',
     '    }',
     '  }',

@@ -177,7 +177,15 @@
     P.rimDown = [.02, .2];
     P.rimThin = [0, .001];
     P.matter = [0, .36];
-    WORDMARK_TRAVEL = .04;   // as letras se apagam antes, para não ficarem sobre as paredes
+    // Leitura da marca: a logo completa fica parada INTRO_HOLD ms a mais antes de a câmera
+    // partir (o resto da abertura só começa depois, com a mesma duração); as letras então se
+    // dissolvem devagar, junto com a formação do espaço.
+    var INTRO_HOLD = 900;
+    T.camera = [T.camera[0] + INTRO_HOLD, T.camera[1] + INTRO_HOLD];
+    T.light = [T.light[0] + INTRO_HOLD, T.light[1] + INTRO_HOLD];
+    T.wordmarkOut = [T.wordmarkOut[0] + INTRO_HOLD, T.wordmarkOut[1] + INTRO_HOLD];
+    T.ui += INTRO_HOLD;
+    WORDMARK_TRAVEL = .1;
   }
   var P_ARC_TONE = [0, .12];   // experimento vidro (anterior): cor do arco no SVG
   var P_ARC_BAND = [0, .004];  // experimento vidro: o túnel assume o desenho do arco
