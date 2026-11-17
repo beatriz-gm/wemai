@@ -145,7 +145,11 @@
      suave e, como o avanço também parte devagar, não há início nem fim bruscos (no máximo
      ~1,1 de opacidade por segundo, menos que no desktop). As pontas do arco sobre o vão
      somem um pouco mais devagar, para o arco não mudar de forma de repente. */
-  var COARSE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  /* Experimento reversível "paredes de vidro": abra vidro.html (ou index.html?paredes=vidro).
+     O parâmetro também liga a versão celular do túnel em qualquer aparelho, para a variante
+     poder ser vista no PC sem o modo celular do navegador; sem ele, nada muda. */
+  var WALL_GLASS = /[?&]paredes=vidro(&|$)/.test(location.search);
+  var COARSE = WALL_GLASS || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   var WORDMARK_TRAVEL = .12;
   // As pontas (abaixo do centro) somem devagar enquanto a forma da boca aparece; as laterais
   // acesas só descem depois que elas se foram, então uma não se sobrepõe à outra (ver rimDown).
@@ -162,10 +166,6 @@
   GEOMETRY.entry = ENTRY;
   GEOMETRY.length += ENTRY;
   var P_RIM_EXIT = [.18, .42];   // o fio de luz da saída acende com a formação do túnel
-
-  /* Experimento reversível "paredes de vidro" (só no celular): abra com ?paredes=vidro para
-     ver as paredes feitas de lâminas de vidro em camadas; sem o parâmetro, a versão atual. */
-  var WALL_GLASS = COARSE && /[?&]paredes=vidro(&|$)/.test(location.search);
 
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
