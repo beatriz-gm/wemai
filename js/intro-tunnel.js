@@ -194,7 +194,7 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault,uWallG;',
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -382,6 +382,17 @@
     // Espaçamento das juntas longitudinais do teto contínuo (no arco da abóbada): a linha de
     // luz dos ombros (θ = .95) cai exatamente numa delas.
     'const float VAULT_SEAM=135.375;',
+    // Experimento "paredes de vidro" (?paredes=vidro, só no celular, uWallG): a parede é feita
+    // de lâminas de vidro de larguras irregulares (WG_W em média), algumas divididas na altura,
+    // cada uma com densidade, recuo e inclinação próprios; atrás delas, a WG_D, uma segunda
+    // camada mais escura e mais funda (WG_W2), vista por transparência, com juntas de luz fracas.
+    'const float WG_W=170.;const float WG_W2=260.;const float WG_D=46.;',
+    // Limites irregulares de uma sequência de células de largura média w (semente k).
+    'vec3 wgCell(float z,float w,float k){float i=floor(z/w);',
+    '  float b0=(i+(hash(vec2(i,k))-.5)*.6)*w,b1=(i+1.+(hash(vec2(i+1.,k))-.5)*.6)*w;',
+    '  if(z<b0){b1=b0;i-=1.;b0=(i+(hash(vec2(i,k))-.5)*.6)*w;}',
+    '  else if(z>b1){i+=1.;b0=b1;b1=(i+1.+(hash(vec2(i+1.,k))-.5)*.6)*w;}',
+    '  return vec3(i,b0,b1);}',
     'float ceilStruct(vec4 st){return uCeil>.5&&fract(st.w)<CE_SPLIT?1.:0.;}',
     // Revelação: a tecnologia nasce no vão (z = 0) e avança em direção à câmera.
     'float techReveal(float z){float f=uBuild*(LEN+320.);return 1.-smoothstep(f-260.,f,z);}',
@@ -652,6 +663,8 @@
     'vec3 rimOn(vec3 c,vec2 rl,float ah){c=glowOn(c,rl.y*RIM_HALO+ah);float k=min(rl.x,1.);float lu=dot(c,vec3(.3,.59,.11));vec3 cc=mix(vec3(.50,.86,1.),vec3(.20,.62,.96),smoothstep(.6,.95,lu));return mix(c,cc,k*mix(.6,.9,smoothstep(.6,.95,lu)))+vec3(.62,.88,1.)*rl.x*RIM_K*.16;}',
     'vec2 glasses(vec2 d,float mir,float soft,out vec4 L,out vec2 F,out vec4 Z,out vec4 S){',
     '  float best=1e9;Z=vec4(0.);S=vec4(0.);L=vec4(0.);F=vec2(1.);',
+    // Paredes de vidro: as telas da parede saem (a própria parede é feita de lâminas).
+    '  if(uWallG>.5)return vec2(0.);',
     '  pickPanels(d.x>0.,best,Z,S,1./abs(d.x),d.y,mir);',
     '  if(best>=1e9){S=vec4(0.);return vec2(0.);}',
     '  return glass(d,d.x>0.?1.:-1.,Z,S.x,S.y,mir,soft,L,F);',
@@ -835,6 +848,37 @@
     // as paredes não ficarem quadriculadas. Trecho do túnel onde os feixes existem:
     // Saída distante: a câmera expõe para o túnel enquanto está longe da saída (como uma
     // câmera real), para a estrutura manter o tom de antes; as luzes não entram nessa conta.
+    /* Paredes de vidro (experimento): a cor já iluminada da parede vira o reflexo das lâminas
+       da frente; por trás delas aparece a camada funda, com outra divisão (paralaxe real: o
+       raio é prolongado até ela). Cada lâmina deixa ver mais ou menos o fundo (densidade, e
+       mais reflexo quando vista de lado: Fresnel), reflete um pouco diferente (inclinação), tem
+       o bisel aceso do lado da saída e a sombra do recuo do lado da câmera. */
+    '  if(uWallG>.5&&surf==1.&&P.z>0.){',
+    '    float sdw=P.x>0.?1.:-1.;vec3 base=col;',
+    '    float lo=1.-smoothstep(3.,10.,fp);',
+    '    vec3 c1=wgCell(P.z,WG_W,sdw*7.1+1.);',
+    '    float hs=hash(vec2(c1.x,sdw*3.7));float ys=hs<.75?SPRING+60.+hash(vec2(c1.x,sdw*5.3))*(FLOOR-SPRING-170.):-1e4;',
+    '    float up=P.y<ys?1.:0.;vec2 cid=vec2(c1.x,up+sdw*11.);',
+    '    float den=.16+.52*hash(cid),rec=hash(cid+9.1),tl=hash(cid+3.7)-.5,eg=hash(cid+5.3);',
+    '    float cv=abs(d.x)/length(vec3(d,1.));float fr=pow(1.-cv,5.);den=mix(den,1.,fr*.6);',
+    '    float t2=(uW+WG_D)/abs(d.x);vec3 P2=vec3(t2*d.x,EYE+t2*d.y,uCam-t2);float fp2=t2/uF;',
+    '    vec3 back=base*.34*vec3(.70,.86,1.22);',
+    '    if(P2.y<FLOOR&&P2.y>SPRING-30.&&P2.z>0.){',
+    '      vec3 c2=wgCell(P2.z,WG_W2,sdw*2.3+5.);float e2=min(P2.z-c2.y,c2.z-P2.z);',
+    '      float h2=hash(vec2(c2.x,sdw*9.));float y2=SPRING+90.+h2*(FLOOR-SPRING-200.);',
+    '      back*=(.65+.7*h2)*(.75+.5*smoothstep(FLOOR,SPRING,P2.y));',
+    '      float l2=(1.-smoothstep(3.,10.,fp2))*smoothstep(SPRING-30.,SPRING+20.,P2.y);',
+    '      back+=lin(BEAM)*(line(e2,.6,fp2)*.16+line(abs(P2.y-y2),.5,fp2)*.08*step(.4,h2))*l2;',
+    '      back*=1.-(1.-smoothstep(0.,14.,e2))*.3;',
+    '    }else back*=.7;',
+    '    vec3 gc=base*(1.+.24*tl)*(1.+.16*(smoothstep(FLOOR,SPRING,P.y)-.5)*sign(tl));',
+    '    col=mix(back,gc,den);',
+    '    float ez0=P.z-c1.y,ez1=c1.z-P.z,eyy=abs(P.y-ys);',
+    '    float ek=eg>.45?1.:.15;',
+    '    col+=lin(PG_SHEEN)*((line(ez0,.5,fp)*.30+exp(-ez0/(7.+fp))*.10)*ek+line(eyy,.45,fp)*.18)*lo*Lavg*GAIN*.35;',
+    '    col*=1.-(1.-smoothstep(0.,3.+rec*16.,ez1))*.38*lo;',
+    '    col*=1.-(1.-smoothstep(0.,2.+rec*6.,eyy))*up*.25*lo;',
+    '  }',
     '  if(ENTRY>0.)col*=pow(max(uCam/2400.,1.),1.25);',
     '  float inT=smoothstep(0.,40.,P.z)*(1.-smoothstep(LEN-40.,LEN,P.z));',
     /* Feixes de luz ciano (teste): duas linhas finas de luz ao longo do túnel, uma em cada
@@ -877,7 +921,7 @@
     '    col=mix(col,lin(TECH_LINE),min(ln*.20,1.)*K_LINES*nearK*uTech*techReveal(P.z));',
     '  }',
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
-    '  if(uTech>.001&&surf<=1.&&P.z>0.){',
+    '  if(uTech>.001&&surf<=1.&&P.z>0.&&uWallG<.5){',
     '    vec2 wl=wallLight(P.x>0.,P);',
     '    col*=1.-.42*wl.x*uTech*surf;',
     '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel);',
@@ -1087,7 +1131,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault', 'uWallG',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1269,6 +1313,7 @@
       gl.uniform1f(u.uLineE, s.lineEarly || 0);
       gl.uniform1f(u.uStruct, s.struct || 0);
       gl.uniform1f(u.uVault, s.vault || 0);
+      gl.uniform1f(u.uWallG, s.wallGlass || 0);
       panelUniforms(s.p, panelBox, panelState, ceilBox, ceilState);
       gl.uniform4fv(u.uCB, ceilBox);
       gl.uniform4fv(u.uCS, ceilState);

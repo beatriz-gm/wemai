@@ -163,6 +163,10 @@
   GEOMETRY.length += ENTRY;
   var P_RIM_EXIT = [.18, .42];   // o fio de luz da saída acende com a formação do túnel
 
+  /* Experimento reversível "paredes de vidro" (só no celular): abra com ?paredes=vidro para
+     ver as paredes feitas de lâminas de vidro em camadas; sem o parâmetro, a versão atual. */
+  var WALL_GLASS = COARSE && /[?&]paredes=vidro(&|$)/.test(location.search);
+
   /* Cor do arco: do azul-marinho da marca (com a luz azulada na borda interna) ao tom
      da pedra do túnel, iluminada pela paisagem — como a borda do vão nos frames 6 e 7.
      Ordem: preenchimento do arco; stops de #portal-face (borda interna → externa). */
@@ -346,6 +350,7 @@
         rimExit: ENTRY ? smooth(p, P_RIM_EXIT) : 0,
         form: COARSE ? 1 : 0,                         // formação gradual: só no celular
         struct: COARSE ? 1 : 0,                       // estrutura contínua: só no celular
+        wallGlass: WALL_GLASS ? 1 : 0,                // experimento ?paredes=vidro
         vault: COARSE ? 1 : 0,                        // teto contínuo com juntas longitudinais: só no celular
         lineEarly: COARSE ? smooth(p, [.06, .26]) : 0,  // linhas de perspectiva antes das superfícies
         metal: COARSE ? 1 : 0,   // teste "metal azul acetinado": só no celular
