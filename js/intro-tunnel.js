@@ -507,6 +507,21 @@
     // espessura. Parede: níveis de profundidade e sombra do degrau entre lâminas vizinhas.
     'const float GD_TILT=1.6;const float GD_DENSE=.24;const float GD_LIGHT=.32;const float GD_FAR=.6;const float GD_THICK=.10;',
     'const float GD_STEP=.40;const float GD_STEPW=34.;',
+    // Arestas (paredes de vidro, referência "Do digital ao real" só para o vidro): o fio da
+    // borda pega a luz da saída em vez de contornar a lâmina por igual. Força das bordas do lado
+    // oposto à luz, quão concentrada é a luz no lado da saída, núcleo mais branco (cor do
+    // storyboard: azul claro quase branco), reflexo que corre pela aresta com o avanço da
+    // câmera e quanto fica do halo.
+    'const float GE_SIDE=.10;const float GE_POW=1.6;const vec3 GE_CORE=vec3(.86,.95,1.);const float GE_WHITE=.5;',
+    'const float GE_GLINT=.65;const float GE_HALO=.45;',
+    // Brilho que corre pela aresta: pico em pos (0..1 ao longo dela), periódico.
+    'float glint(float u,float pos){float d=u-pos;d-=floor(d+.5);return 1.-GE_GLINT+GE_GLINT*1.6*exp(-d*d/.05);}',
+    // Profundidade: o reflexo acompanha o ângulo de visão da lâmina (atan(GE_DREF/dist)), então
+    // corre rápido nas próximas e quase parado nas distantes (paralaxe); GE_ANG = voltas por
+    // radiano. Contraste: arestas mais vivas perto (GE_NEARK) e apagadas ao longe (GE_FARK).
+    'const float GE_DREF=600.;const float GE_ANG=1.2;const float GE_NEARK=1.3;const float GE_FARK=.3;',
+    'float glintPos(float seed,float dist){return fract(seed+GE_ANG*atan(GE_DREF/max(dist,1.)));}',
+    'float edgeDepth(float dist){return mix(GE_NEARK,GE_FARK,smoothstep(300.,2600.,dist));}',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -729,7 +744,12 @@
     // Profundidade: bordas das lâminas da frente e das voltadas para a luz mais vivas; ao longe,
     // mais discretas. Espessura: faixa clara fina entre o fio da face e o da aresta de trás.
     '    float edk=mix(.8,1.15,kl)*mix(1.,GD_FAR,kd);float th_=2.+3.*pk;',
-    '    c+=lin(GL_EDGEC)*((lineT(ed,fm)+lineT(ed-th_,fm)*.3*pk)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K*mix(.55,1.15,pk)*edk+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)*edk+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
+    // Arestas: forte só no lado voltado para a saída, quase apagada no oposto, com um reflexo
+    // que corre ao longo dela conforme a câmera avança.
+    '    float sE=mix(GE_SIDE,1.,pow(max(dot(en,xd),0.),GE_POW));',
+    '    float dE=f.y*uF;float gE=glint(e.x<e.y?q0.y/sz.y:q0.x/sz.x,glintPos(S.w*3.17,dE));float kE=edgeDepth(dE);',
+    '    c+=mix(lin(GL_EDGEC),lin(GE_CORE),GE_WHITE)*(lineT(ed,fm)+lineT(ed-th_,fm)*.3*pk)*GL_THIN*1.25*sE*gE*etop*GL_EDGE_K*mix(.55,1.15,pk)*edk*kE*vis*cl;',
+    '    c+=lin(GL_EDGEC)*(exp(-abs(ed)/(7.+fm))*GL_HALO*edk+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW)*(.15+1.2*sE)*GE_HALO*kE*vis*cl;',
     '    c+=lin(PG_SHEEN)*seg(ed,0.,th_,fm)*ins*GD_THICK*pk*(.4+.6*sl)*(1.-kd)*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
@@ -1102,7 +1122,11 @@
     '    float fmc=gF-gZ+.35*smoothstep(0.,2400.,zec)-GL_STAG*hash(vec2(c1.x+up*.5,sdw*3.));',
     '    float gSc=smoothstep(0.,1.,clamp((fmc-GL_LAG*.4)*1.4,0.,1.));float gDc=smoothstep(0.,1.,clamp((fmc-GL_LAG)*1.6,0.,1.));',
     '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*mix(.6,1.3,kz)*lo*ex*gDc;',
-    '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez0-3.-6.*kz,fp)*.3*kz+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K*ek+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gDc;',
+    // Arestas: a do lado da saída (ez0) pega a luz, com reflexo correndo por ela; a do lado da
+    // câmera (ez1) quase some; a divisão horizontal fica discreta.
+    '    float gV=glint(P.y/420.,glintPos(hs*5.3,t)),gH=glint(P.z/(c1.z-c1.y+1.),glintPos(hs*2.1,t*.85));float kW=edgeDepth(t);',
+    '    col+=mix(lin(GL_EDGEC),lin(GE_CORE),GE_WHITE)*(lineT(ez0,fp)*1.35*gV+lineT(ez0-3.-6.*kz,fp)*.3*kz*gV+lineT(ez1,fp)*.6*GE_SIDE+lineT(eyy,fp)*.5*gH)*GL_THIN*GL_EDGE_K*ek*kW*lo*ex*gDc;',
+    '    col+=lin(GL_EDGEC)*((exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.25)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.25)*GL_GLOW*1.2)*GE_HALO*1.4*kW*lo*ex*gDc;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     /* Degrau entre lâminas vizinhas (mesma metade): a luz vem da saída, então a vizinha do lado
        da saída, se estiver mais à frente, projeta uma sombra curta nesta junto à junta; se a
