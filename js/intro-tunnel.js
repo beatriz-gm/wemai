@@ -516,6 +516,12 @@
     // espessura. Parede: níveis de profundidade e sombra do degrau entre lâminas vizinhas.
     'const float GD_TILT=1.6;const float GD_DENSE=.24;const float GD_LIGHT=.32;const float GD_FAR=.6;const float GD_THICK=.10;',
     'const float GD_STEP=.40;const float GD_STEPW=34.;',
+    // Camadas (paredes de vidro): cada nível de profundidade com leitura própria. Claridade das
+    // lâminas do fundo e da frente, densidade extra das da frente (escurecem mais o que está
+    // atrás delas), aresta do lado da câmera que só as da frente recuperam (recortam as de trás
+    // onde se cruzam) e tom das do fundo (puxa para a parede, como se recolhidas nela).
+    'const float GLY_BACK=.60;const float GLY_FRONT=1.32;const float GLY_DENSE=.16;const float GLY_SIDE=.45;',
+    'const vec3 GLY_BACKC=vec3(.78,.84,.96);',
     // Arestas (paredes de vidro, referência "Do digital ao real" só para o vidro): o fio da
     // borda pega a luz da saída em vez de contornar a lâmina por igual. Força das bordas do lado
     // oposto à luz, quão concentrada é a luz no lado da saída, núcleo mais branco (cor do
@@ -739,9 +745,10 @@
     // Densidade leve do vidro: as lâminas da frente escurecem um pouco o que está atrás (com
     // tom frio), as voltadas para a saída clareiam de leve, as voltadas para a câmera ficam na
     // sombra; ao longe tudo isso se dilui.
-    '    float gdn=GD_DENSE*mix(.45,1.,pk)*(1.-.7*kd);',
+    '    float gdn=(GD_DENSE*mix(.45,1.,pk)+GLY_DENSE*pk*pk)*(1.-.7*kd);',
     '    body=mix(body,body*lin(vec3(.80,.88,1.)),gdn*cl);',
     '    body*=1.+(kl-.5)*GD_LIGHT*(1.-.6*kd)*cl;',
+    '    body*=mix(vec3(1.),mix(GLY_BACK*GLY_BACKC,vec3(GLY_FRONT),pk),cl*(1.-.5*kd));',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
@@ -757,7 +764,7 @@
     '    float edk=mix(.8,1.15,kl)*mix(1.,GD_FAR,kd);float th_=2.+3.*pk;',
     // Arestas: forte só no lado voltado para a saída, quase apagada no oposto, com um reflexo
     // que corre ao longo dela conforme a câmera avança.
-    '    float sE=mix(GE_SIDE,1.,pow(max(dot(en,xd),0.),GE_POW));',
+    '    float sE=mix(mix(GE_SIDE,GLY_SIDE,pk*pk),1.,pow(max(dot(en,xd),0.),GE_POW));',
     '    float dE=f.y*uF;float gE=glint(e.x<e.y?q0.y/sz.y:q0.x/sz.x,glintPos(S.w*3.17,dE));float kE=edgeDepth(dE);',
     '    c+=mix(lin(GL_EDGEC),lin(GE_CORE),GE_WHITE)*(lineT(ed,fm)+lineT(ed-th_,fm)*.3*pk)*GL_THIN*1.25*sE*gE*etop*GL_EDGE_K*mix(.55,1.15,pk)*edk*kE*vis*cl;',
     '    c+=lin(GL_EDGEC)*(exp(-abs(ed)/(7.+fm))*GL_HALO*edk+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW)*(.15+1.2*sE)*GE_HALO*kE*vis*cl;',
@@ -1117,6 +1124,7 @@
     '    }else back*=.7;',
     '    vec3 gc=base*(1.+.24*tl)*(1.+.16*(smoothstep(FLOOR,SPRING,P.y)-.5)*sign(tl));',
     '    gc*=mix(vec3(.84,.88,.96),vec3(1.06),kz)*mix(1.,mix(.86,1.10,kz),kfa);',
+    '    gc*=mix(1.,mix(GLY_BACK*GLY_BACKC.x+.12,GLY_FRONT-.06,kz),kfa);',
     '    col=mix(back,gc,den);',
     '    float ez0=P.z-c1.y,ez1=c1.z-P.z,eyy=abs(P.y-ys);',
     /* Mesmo acabamento das lâminas flutuantes: fio de luz ciano nas bordas (mais forte do lado
@@ -1136,7 +1144,7 @@
     // Arestas: a do lado da saída (ez0) pega a luz, com reflexo correndo por ela; a do lado da
     // câmera (ez1) quase some; a divisão horizontal fica discreta.
     '    float gV=glint(P.y/420.,glintPos(hs*5.3,t)),gH=glint(P.z/(c1.z-c1.y+1.),glintPos(hs*2.1,t*.85));float kW=edgeDepth(t);',
-    '    col+=mix(lin(GL_EDGEC),lin(GE_CORE),GE_WHITE)*(lineT(ez0,fp)*1.35*gV+lineT(ez0-3.-6.*kz,fp)*.3*kz*gV+lineT(ez1,fp)*.6*GE_SIDE+lineT(eyy,fp)*.5*gH)*GL_THIN*GL_EDGE_K*ek*kW*lo*ex*gDc;',
+    '    col+=mix(lin(GL_EDGEC),lin(GE_CORE),GE_WHITE)*(lineT(ez0,fp)*1.35*gV+lineT(ez0-3.-6.*kz,fp)*.3*kz*gV+lineT(ez1,fp)*.6*mix(GE_SIDE,GLY_SIDE,kz*kz*kfa)+lineT(eyy,fp)*.5*gH)*GL_THIN*GL_EDGE_K*ek*kW*lo*ex*gDc;',
     '    col+=lin(GL_EDGEC)*((exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.25)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.25)*GL_GLOW*1.2)*GE_HALO*1.4*kW*lo*ex*gDc;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
     /* Degrau entre lâminas vizinhas (mesma metade): a luz vem da saída, então a vizinha do lado
