@@ -161,6 +161,8 @@
   // Afastamento da parede no início da montagem e na posição final (mínimo + variação).
   // A variação final é desigual (h^1,6): a maioria um pouco afastada, algumas bem soltas.
   var GLASS_START_G = 110, GLASS_START_VAR = 50, GLASS_END_G = 18, GLASS_END_VAR = 80, GLASS_END_EXTRA = 150;
+  // Lâminas que ficariam mais longe que isso da parede (invadindo o meio do túnel) saem.
+  var GLASS_G_MAX = 120;
   function hashJs(x) { var v = Math.sin(x * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }
   function glassAssembleMotion(seed, p, endK) {
     var h = function (k) { return hashJs(seed * 1.37 + k * 17.13); };
@@ -242,6 +244,7 @@
         var cz0 = z0 + (q[2] - q[1]) / 2;
         if (cz0 - hz > cam - 30) return;             // já ficou para trás da câmera
         var endK = 1 - smoothstepJs(300, 700, q[1] + r * GLASS_PERIOD);   // trecho final, junto à saída
+        if (GLASS_ASSEMBLE && glassAssembleMotion(seed, 1, endK).g > GLASS_G_MAX) return;
         lists[side].push({ q: q, seed: seed, sh: sh, hz: hz, cz0: cz0, endK: endK });
       });
     }
