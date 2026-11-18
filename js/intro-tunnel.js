@@ -501,6 +501,12 @@
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
     'const float GL_SHADE=.3;const float GL_CAUST=.17;const float GL_SPILL=.32;',
+    // Profundidade e luz das lâminas (paredes de vidro): quanto a inclinação muda a luz que a
+    // face recebe da saída, densidade do vidro das lâminas da frente, diferença de claridade
+    // entre faces voltadas para a luz e para a câmera, força das bordas ao longe, faixa da
+    // espessura. Parede: níveis de profundidade e sombra do degrau entre lâminas vizinhas.
+    'const float GD_TILT=1.6;const float GD_DENSE=.24;const float GD_LIGHT=.32;const float GD_FAR=.6;const float GD_THICK=.10;',
+    'const float GD_STEP=.40;const float GD_STEPW=34.;',
     // Teste "teto estrutural" (só no celular, uCeil): parte das telas do teto vira divisão da
     // própria abóbada (rente a ela, sem vidro, sem luz própria): fração delas, força da junta
     // escura, do bisel aceso do lado da saída e da leve diferença de tom da placa. As demais
@@ -695,8 +701,21 @@
     // Nível de cada lâmina solta (pk): as mais afastadas da parede, e uma variação própria,
     // ficam mais vivas (reflexo, borda, espessura); as encostadas, mais frias e discretas.
     '    float pk=clamp(.5*fract(S.w*7.13+.3)+.5*smoothstep(12.,48.,S.x),0.,1.);',
+    /* Profundidade e luz (paredes de vidro): pk passa a depender mais do afastamento real da
+       parede (as que avançam para o túnel ficam de fato à frente). kl: quanto a face vista olha
+       para a saída (inclinação th: sin(th) > 0 = voltada para a luz); kd: distância à câmera,
+       que leva as lâminas do fundo para o tom do túnel (perspectiva aérea, contraste menor). */
+    '    float kl=.5,kd=0.;',
+    '    if(cl>.001){pk=clamp(.25*fract(S.w*7.13+.3)+.75*smoothstep(14.,95.,S.x),0.,1.);',
+    '      kl=clamp(.5+sin(paneTilt(S.z))*GD_TILT,0.,1.);kd=smoothstep(500.,2800.,f.y*uF);}',
     '    body=mix(body,body*vec3(.9,.94,1.),(1.-pk)*cl*.6);',
-    '    body+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*mix(.7,1.25,pk)*cl;',
+    '    body+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-uv.y))*mix(.7,1.25,pk)*mix(.55,1.45,kl)*cl;',
+    // Densidade leve do vidro: as lâminas da frente escurecem um pouco o que está atrás (com
+    // tom frio), as voltadas para a saída clareiam de leve, as voltadas para a câmera ficam na
+    // sombra; ao longe tudo isso se dilui.
+    '    float gdn=GD_DENSE*mix(.45,1.,pk)*(1.-.7*kd);',
+    '    body=mix(body,body*lin(vec3(.80,.88,1.)),gdn*cl);',
+    '    body*=1.+(kl-.5)*GD_LIGHT*(1.-.6*kd)*cl;',
     '    c=mix(c,body,ins*vis);',
     '    float ed=min(e.x,e.y);',
     '    vec2 en=e.x<e.y?vec2(q0.x<sz.x*.5?-1.:1.,0.):vec2(0.,q0.y<sz.y*.5?-1.:1.);',
@@ -707,7 +726,11 @@
     // Bordas que pegam a luz (paredes de vidro): fio de luz mais forte do lado da saída e no
     // alto, com um halo ciano leve dos dois lados da borda.
     '    float etop=en.y<0.?1.4:1.;',
-    '    c+=lin(GL_EDGEC)*((lineT(ed,fm)+lineT(ed-2.-3.*pk,fm)*.3*pk)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K*mix(.55,1.15,pk)+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
+    // Profundidade: bordas das lâminas da frente e das voltadas para a luz mais vivas; ao longe,
+    // mais discretas. Espessura: faixa clara fina entre o fio da face e o da aresta de trás.
+    '    float edk=mix(.8,1.15,kl)*mix(1.,GD_FAR,kd);float th_=2.+3.*pk;',
+    '    c+=lin(GL_EDGEC)*((lineT(ed,fm)+lineT(ed-th_,fm)*.3*pk)*GL_THIN*(.35+.9*sl)*etop*GL_EDGE_K*mix(.55,1.15,pk)*edk+exp(-abs(ed)/(7.+fm))*GL_HALO*(.5+sl)*edk+exp(-abs(ed)/(30.+fm*3.))*GL_GLOW*(.5+sl))*vis*cl;',
+    '    c+=lin(PG_SHEEN)*seg(ed,0.,th_,fm)*ins*GD_THICK*pk*(.4+.6*sl)*(1.-kd)*vis*cl;',
     '    float out_=1.-ins;',
     '    c*=1.-out_*exp(-max(-ed,0.)/(2.5+fm))*max(dot(en,-xd),0.)*PG_SHADOW*vis;',
     '    c+=lin(PG_SHEEN)*out_*line(-ed-1.6,.6,fm)*max(dot(en,xd),0.)*.35*PG_EDGE*vis*(1.-cl);',
@@ -1046,7 +1069,10 @@
        densas, claras e refletem mais, com borda mais viva e a espessura do vidro visível; as do
        fundo são mais transparentes, mais frias e de borda mais discreta. eg varia a borda entre
        lâminas do mesmo nível, para a parede não se repetir. */
-    '    float kz=rec;den*=mix(.72,1.12,kz);float ek=mix(.5,1.15,kz)*(.75+.5*eg);',
+    // Três níveis bem definidos (fundo, meio, frente) em vez de uma variação contínua, para as
+    // camadas lerem como planos separados; a separação se dilui ao longe (kfa).
+    '    float kfa=1.-smoothstep(900.,3200.,t);',
+    '    float kz=mix(rec,floor(rec*2.999)*.5,kfa);den*=mix(.62,1.18,kz);float ek=mix(.45,1.2,kz)*(.75+.5*eg);',
     '    float cv=abs(d.x)/length(vec3(d,1.));float fr=pow(1.-cv,5.);den=mix(den,1.,fr*.6);',
     '    float t2=(uW+WG_D)/abs(d.x);vec3 P2=vec3(t2*d.x,EYE+t2*d.y,uCam-t2);float fp2=t2/uF;',
     '    vec3 back=base*.34*vec3(.70,.86,1.22);',
@@ -1059,7 +1085,7 @@
     '      back*=1.-(1.-smoothstep(0.,14.,e2))*.3;',
     '    }else back*=.7;',
     '    vec3 gc=base*(1.+.24*tl)*(1.+.16*(smoothstep(FLOOR,SPRING,P.y)-.5)*sign(tl));',
-    '    gc*=mix(vec3(.84,.88,.96),vec3(1.06),kz);',
+    '    gc*=mix(vec3(.84,.88,.96),vec3(1.06),kz)*mix(1.,mix(.86,1.10,kz),kfa);',
     '    col=mix(back,gc,den);',
     '    float ez0=P.z-c1.y,ez1=c1.z-P.z,eyy=abs(P.y-ys);',
     /* Mesmo acabamento das lâminas flutuantes: fio de luz ciano nas bordas (mais forte do lado
@@ -1078,6 +1104,13 @@
     '    col+=(lin(GL_WARM)*pow(tw,4.)*.9+lin(GL_SKY)*(.35+.4*(1.-tw)))*(GL_REF*fr+GL_TOP*(1.-clamp(vy,0.,1.)))*mix(.6,1.3,kz)*lo*ex*gDc;',
     '    col+=lin(GL_EDGEC)*((lineT(ez0,fp)*1.25+lineT(ez0-3.-6.*kz,fp)*.3*kz+lineT(ez1,fp)*.6+lineT(eyy,fp)*1.1)*GL_THIN*GL_EDGE_K*ek+(exp(-ez0/(4.+fp))+exp(-eyy/(4.+fp))*.6)*GL_HALO*1.5+(exp(-ez0/(24.+fp*3.))+exp(-eyy/(24.+fp*3.))*.6)*GL_GLOW*1.2)*lo*ex*gDc;',
     '    col*=1.-(1.-smoothstep(0.,6.+rec*20.,ez1))*.2*lo;',
+    /* Degrau entre lâminas vizinhas (mesma metade): a luz vem da saída, então a vizinha do lado
+       da saída, se estiver mais à frente, projeta uma sombra curta nesta junto à junta; se a
+       vizinha do lado da câmera estiver mais funda, aparece a lateral desta (na sombra). */
+    '    float kzA=floor(hash(vec2(c1.x-1.,up+sdw*11.)+9.1)*2.999)*.5,kzB=floor(hash(vec2(c1.x+1.,up+sdw*11.)+9.1)*2.999)*.5;',
+    '    float kq=floor(rec*2.999)*.5;',
+    '    col*=1.-(1.-smoothstep(0.,GD_STEPW*max(kzA-kq,0.)+1.,ez0))*step(kq+.1,kzA)*GD_STEP*lo*kfa;',
+    '    col*=1.-(1.-smoothstep(0.,3.+fp+8.*max(kq-kzB,0.),ez1))*step(kzB+.1,kq)*GD_STEP*.8*lo*kfa;',
     '    col*=1.-(1.-smoothstep(0.,4.+rec*8.,eyy))*up*.14*lo;',
     // Formação: a divisão em lâminas surge depois da superfície (gS).
     '    col=mix(base,col,gSc);',
