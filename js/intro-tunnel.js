@@ -501,6 +501,15 @@
     // Luz das lâminas no entorno: quanto da sombra fica (fração da de antes), força do contorno
     // claro da luz que passa pelas bordas e do brilho ciano espalhado na parede e no piso.
     'const float GL_SHADE=.3;const float GL_CAUST=.17;const float GL_SPILL=.32;',
+    // Sombra projetada das lâminas soltas (paredes de vidro): força (fração da sombra cheia de
+    // uma tela; o vidro deixa passar parte da luz), penumbra base e quanto ela abre com o
+    // afastamento da parede (a saída é uma fonte larga: mais longe da parede, sombra mais
+    // macia), e escurecimento de contato logo atrás da lâmina.
+    'const float GS_K=.9;const float GS_PEN0=4.;const float GS_PEN=.45;const float GS_AO=.16;',
+    // A projeção exata a partir da saída (luz rasante) jogaria a sombra longe demais da lâmina;
+    // aqui ela fica junto dela, deslocada para o lado da câmera (GS_OZ) e um pouco para baixo
+    // (GS_OY), proporcional ao afastamento: quanto mais solta, mais longe e mais macia.
+    'const float GS_OZ=1.8;const float GS_OY=.45;const vec3 GS_TINT=vec3(.30,.40,.62);',
     // Profundidade e luz das lâminas (paredes de vidro): quanto a inclinação muda a luz que a
     // face recebe da saída, densidade do vidro das lâminas da frente, diferença de claridade
     // entre faces voltadas para a luz e para a câmera, força das bordas ao longe, faixa da
@@ -616,14 +625,16 @@
     '  float gl=exp(-o/(14.+st.x*.6))*st.y;',
     '  if(st.z<.5)return vec3(0.,gl,0.);',
     '  float f=(uW-st.x)/uW;vec2 e=abs(vec2(P.z*f,430.+(P.y-430.)*f)-c)-h;',
-    '  float pen=3.+st.x*.5;',
+    '  if(uWallG>.5)e=abs(P.zy-c-vec2(GS_OZ,GS_OY)*st.x)-h;',
+    '  float pen=uWallG>.5?GS_PEN0+st.x*GS_PEN:3.+st.x*.5;',
     '  float sd=length(max(e,0.))+min(max(e.x,e.y),0.);',
     '  float ca=uWallG>.5?exp(-abs(sd)/(5.+pen*.8))*st.y:0.;',
     '  return vec3((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl,ca);',
     '}',
-    'vec3 wallLight(bool r,vec3 P){',
-    '  vec3 o=vec3(0.);',
-    '  for(int i=0;i<SLOTS;i++)o=max(o,panelLight(P,r?uPB[i]:uPB[i+SLOTS],r?uPS[i]:uPS[i+SLOTS]));',
+    // sg: afastamento da lâmina que projeta a sombra mais forte (para não sombrear ela mesma).
+    'vec3 wallLight(bool r,vec3 P,out float sg){',
+    '  vec3 o=vec3(0.);sg=0.;',
+    '  for(int i=0;i<SLOTS;i++){vec4 st=r?uPS[i]:uPS[i+SLOTS];vec3 pl=panelLight(P,r?uPB[i]:uPB[i+SLOTS],st);if(pl.x>o.x)sg=st.x;o=max(o,pl);}',
     '  return o;',
     '}',
     // Trecho de x entre a e b, com antialiasing.
@@ -1193,11 +1204,15 @@
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
     // Paredes de vidro: a sombra da tela solta na parede mostra que ela está desprendida; a
     // luz própria fica bem fraca (é vidro, não tela acesa).
+    '  float gSh=0.,gSg=0.;',   // sombra das lâminas (paredes de vidro), aplicada depois delas
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
-    '    vec3 wl=wallLight(P.x>0.,P);',
+    '    vec3 wl=wallLight(P.x>0.,P,gSg);gSh=wl.x*uTech*surf*uWallG;',
     // Vidro: sombra bem leve (a luz passa) e levemente fria; contorno claro da luz que passa
     // pelas bordas; brilho ciano das bordas acesas espalhado na parede e no piso próximos.
-    '    col*=1.-.42*wl.x*uTech*surf*mix(1.,GL_SHADE,uWallG);',
+    '    col*=1.-.42*wl.x*uTech*surf*(1.-uWallG);',
+    // Contato: a parede logo atrás da lâmina fica um pouco mais escura (ela tapa parte da luz
+    // que circula no túnel), mesmo onde a sombra projetada cai mais longe.
+    '    col*=1.-GS_AO*wl.y*surf*uTech*uWallG*gD;',
     '    col*=mix(vec3(1.),vec3(.94,.98,1.06),wl.x*surf*uWallG*uTech);',
     '    col+=lin(TECH_GLOW)*wl.y*.30*K_GLOW*uTech*(1.-.65*uPanel)*(1.-.8*uWallG);',
     '    col+=lin(GL_EDGEC)*(wl.y*GL_SPILL+wl.z*surf*GL_CAUST)*uTech*uWallG*gD;',
@@ -1329,6 +1344,10 @@
     '    }',
     // Borda da tela da parede do lado da saída, acesa pela luz.
     '    if(S.y>.01)col+=lin(TECH_LIGHT)*line(L.x-Z.x,1.,F.x)*smoothstep(-F.y,0.,L.w)*.35*K_EDGE*S.y*uTech*(1.-.6*uPanel)*(1.-uWallG);',
+    // Sombra projetada (paredes de vidro): depois das lâminas, para escurecer também o brilho
+    // delas. Cai na parede e nas lâminas que ficam atrás da que a projeta (menos afastadas da
+    // parede); a própria lâmina e as da frente não recebem.
+    '    if(gSh>.001){float own=S.y>.01&&S.x>gSg-1.?0.:1.;col*=mix(vec3(1.),lin(GS_TINT),min(gSh*GS_K,.6)*own);}',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
