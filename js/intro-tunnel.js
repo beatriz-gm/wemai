@@ -509,6 +509,11 @@
     // A projeção exata a partir da saída (luz rasante) jogaria a sombra longe demais da lâmina;
     // aqui ela fica junto dela, deslocada para o lado da câmera (GS_OZ) e um pouco para baixo
     // (GS_OY), proporcional ao afastamento: quanto mais solta, mais longe e mais macia.
+    // Luz na fresta (paredes de vidro): a luz da saída entra pelo vão entre a lâmina solta e a
+    // parede e acende uma faixa na parede logo atrás da aresta voltada para a saída, que se apaga
+    // para dentro do vão (mais funda quanto mais solta a lâmina). Comprimento base e por unidade
+    // de afastamento, força, cor (luz da saída, clara) e quanto passa através da lâmina da frente.
+    'const float GLK_L0=10.;const float GLK_L=.9;const float GLK_K=1.0;const vec3 GLK_C=vec3(.90,.94,1.);const float GLK_THRU=.75;',
     'const float GS_OZ=1.8;const float GS_OY=.45;const vec3 GS_TINT=vec3(.30,.40,.62);',
     // Profundidade e luz das lâminas (paredes de vidro): quanto a inclinação muda a luz que a
     // face recebe da saída, densidade do vidro das lâminas da frente, diferença de claridade
@@ -624,23 +629,25 @@
     // (a luz vem da saída: a sombra cai do lado da câmera). Retorna (sombra, brilho).
     // Terceiro valor (paredes de vidro): a luz que atravessa as bordas do vidro se concentra num
     // contorno claro e fino em volta da sombra (cáustica).
-    'vec3 panelLight(vec3 P,vec4 b,vec4 st){',
-    '  if(st.y<.01)return vec3(0.);',
+    'vec4 panelLight(vec3 P,vec4 b,vec4 st){',
+    '  if(st.y<.01)return vec4(0.);',
     '  vec2 c=vec2(b.x+b.y,b.z+b.w)*.5,h=vec2(b.y-b.x,b.w-b.z)*.5;',
     '  float o=length(vec3(max(abs(P.zy-c)-h,0.),uW-abs(P.x)));',
     '  float gl=exp(-o/(14.+st.x*.6))*st.y;',
-    '  if(st.z<.5)return vec3(0.,gl,0.);',
+    '  if(st.z<.5)return vec4(0.,gl,0.,0.);',
     '  float f=(uW-st.x)/uW;vec2 e=abs(vec2(P.z*f,430.+(P.y-430.)*f)-c)-h;',
     '  if(uWallG>.5)e=abs(P.zy-c-vec2(GS_OZ,GS_OY)*st.x)-h;',
     '  float pen=uWallG>.5?GS_PEN0+st.x*GS_PEN:3.+st.x*.5;',
     '  float sd=length(max(e,0.))+min(max(e.x,e.y),0.);',
     '  float ca=uWallG>.5?exp(-abs(sd)/(5.+pen*.8))*st.y:0.;',
-    '  return vec3((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl,ca);',
+    // Fresta: começa na aresta do lado da saída (z = b.x) e se apaga para dentro do vão.
+    '  float uz=P.z-b.x;float lk=uWallG>.5?exp(-max(uz,0.)/(GLK_L0+st.x*GLK_L))*smoothstep(-6.,2.,uz)*(1.-smoothstep(-8.,8.,abs(P.y-c.y)-h.y))*st.y*min(st.x/30.,1.):0.;',
+    '  return vec4((1.-smoothstep(-pen,pen,e.x))*(1.-smoothstep(-pen,pen,e.y))*st.y,gl,ca,lk);',
     '}',
     // sg: afastamento da lâmina que projeta a sombra mais forte (para não sombrear ela mesma).
-    'vec3 wallLight(bool r,vec3 P,out float sg){',
-    '  vec3 o=vec3(0.);sg=0.;',
-    '  for(int i=0;i<SLOTS;i++){vec4 st=r?uPS[i]:uPS[i+SLOTS];vec3 pl=panelLight(P,r?uPB[i]:uPB[i+SLOTS],st);if(pl.x>o.x)sg=st.x;o=max(o,pl);}',
+    'vec4 wallLight(bool r,vec3 P,out float sg){',
+    '  vec4 o=vec4(0.);sg=0.;',
+    '  for(int i=0;i<SLOTS;i++){vec4 st=r?uPS[i]:uPS[i+SLOTS];vec4 pl=panelLight(P,r?uPB[i]:uPB[i+SLOTS],st);if(pl.x>o.x)sg=st.x;o=max(o,pl);}',
     '  return o;',
     '}',
     // Trecho de x entre a e b, com antialiasing.
@@ -1212,9 +1219,9 @@
     // Telas: sombra das soltas na parede e a luz delas na parede e no piso.
     // Paredes de vidro: a sombra da tela solta na parede mostra que ela está desprendida; a
     // luz própria fica bem fraca (é vidro, não tela acesa).
-    '  float gSh=0.,gSg=0.;',   // sombra das lâminas (paredes de vidro), aplicada depois delas
+    '  float gSh=0.,gSg=0.,gLk=0.;',   // sombra das lâminas (paredes de vidro), aplicada depois delas
     '  if(uTech>.001&&surf<=1.&&P.z>0.){',
-    '    vec3 wl=wallLight(P.x>0.,P,gSg);gSh=wl.x*uTech*surf*uWallG;',
+    '    vec4 wl=wallLight(P.x>0.,P,gSg);gSh=wl.x*uTech*surf*uWallG;gLk=wl.w*uTech*surf*uWallG*gD;',
     // Vidro: sombra bem leve (a luz passa) e levemente fria; contorno claro da luz que passa
     // pelas bordas; brilho ciano das bordas acesas espalhado na parede e no piso próximos.
     '    col*=1.-.42*wl.x*uTech*surf*(1.-uWallG);',
@@ -1356,6 +1363,8 @@
     // delas. Cai na parede e nas lâminas que ficam atrás da que a projeta (menos afastadas da
     // parede); a própria lâmina e as da frente não recebem.
     '    if(gSh>.001){float own=S.y>.01&&S.x>gSg-1.?0.:1.;col*=mix(vec3(1.),lin(GS_TINT),min(gSh*GS_K,.6)*own);}',
+    // Luz na fresta, vista também através da lâmina da frente (um pouco atenuada).
+    '    if(gLk>.001)col+=lin(GLK_C)*min(gLk,1.)*GLK_K*(S.y>.01?GLK_THRU:1.);',
     '  }',
 
     // Câmera: curva neutra, saída em sRGB e grão fino (como a foto).
