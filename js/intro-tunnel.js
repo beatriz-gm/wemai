@@ -1,3 +1,5 @@
+/* DIAGNOSTICO TEMPORARIO (?debug=1) */
+window.__wdbg=function(m){if(!/[?&]debug=1/.test(location.search))return;var d=document.getElementById('wdbg');if(!d){d=document.createElement('pre');d.id='wdbg';d.style.cssText='position:fixed;left:0;top:0;right:0;z-index:2147483647;margin:0;padding:6px;font:11px/1.3 monospace;background:rgba(0,0,0,.85);color:#0f0;white-space:pre-wrap;word-break:break-all;pointer-events:none;max-height:60vh;overflow:hidden';(document.body||document.documentElement).appendChild(d);}d.textContent+=(performance.now()/1000).toFixed(2)+' '+m+'\n';};
 /* ==========================================================================
    WEMAI — Abertura: o túnel em 3D (WebGL)
 
@@ -1482,9 +1484,10 @@
     try {
       var options = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' };
       gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options);
-      if (!gl) return null;
+      if (!gl) { window.__wdbg&&window.__wdbg('sem WebGL'); return null; }
       var high = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
-      if (!high || high.precision < 16) return null;
+      try { var ri = gl.getExtension('WEBGL_debug_renderer_info'); window.__wdbg&&window.__wdbg('GPU: ' + (ri ? gl.getParameter(ri.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) + ' | highp ' + (high && high.precision) + ' | uniforms ' + gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) + ' | dpr ' + devicePixelRatio + ' | ' + innerWidth + 'x' + innerHeight); } catch (e2) {}
+      if (!high || high.precision < 16) { window.__wdbg&&window.__wdbg('sem highp'); return null; }
       if (gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) < 128) PANEL_SLOTS = 8;
       var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
@@ -1492,7 +1495,8 @@
       gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
       gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragmentSource(geometry, coarse)));
       gl.linkProgram(program);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { window.__wdbg&&window.__wdbg('LINK falhou: ' + gl.getProgramInfoLog(program)); return null; }
+      window.__wdbg&&window.__wdbg('shader ok');
       gl.useProgram(program);
 
       var buffer = gl.createBuffer();
@@ -1502,6 +1506,7 @@
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     } catch (e) {
+      window.__wdbg&&window.__wdbg('ERRO shader: ' + String(e && e.message).slice(0, 600));
       return null;
     }
 
@@ -1621,6 +1626,7 @@
     }
 
     function fail() {
+      window.__wdbg&&window.__wdbg('fail() (contexto perdido ou lento demais)');
       if (lost) return;
       lost = true;
       if (onLost) onLost();
@@ -1739,6 +1745,7 @@
       if (samples.length < 3) return false;
       dropFramebuffer();
       var best = Math.min(samples[0], samples[1], samples[2]);
+      window.__wdbg&&window.__wdbg('calibracao: ' + samples.map(function (x) { return x.toFixed(1); }).join(', ') + ' ms (orcamento ' + BUDGET + ') quality ' + quality.toFixed(2) + ' -> ' + (quality * Math.sqrt(BUDGET / best)).toFixed(2) + ' (min ' + MIN_QUALITY * .7 + ')');
       if (best <= BUDGET) return true;
       // O custo acompanha o número de pixels (quality²).
       var q = quality * Math.sqrt(BUDGET / best);

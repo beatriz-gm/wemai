@@ -590,6 +590,7 @@
       slowFrames = dt > 40 ? slowFrames + 1 : 0;
       if (slowFrames >= 8) {
         slowFrames = 0;
+        window.__wdbg&&window.__wdbg('quadros lentos, degrade');
         if (!tunnel.degrade() && ++slowAtMinimum >= 2) {
           skip();
           return;
@@ -600,6 +601,7 @@
     try {
       render(clock);
     } catch (e) {
+      window.__wdbg&&window.__wdbg('ERRO render: ' + e.message);
       skip();   // erro inesperado: segue para a Home, nunca fica parada
       return;
     }
@@ -631,6 +633,7 @@
 
   /* Pular: a cena não salta; um esmaecimento curto leva ao estado final. */
   function skip() {
+    window.__wdbg&&window.__wdbg('skip() ' + new Error().stack.split('\n').slice(1, 3).join(' | '));
     if (finished) return;
     finish();
     if (reducedMotion.matches) return;
