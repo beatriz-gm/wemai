@@ -299,6 +299,9 @@
   var TECH_DESKTOP = { veil: 1, edge: 1, ink: 1, mark: 1, glow: 1, ceil: 1, ceilLines: 1, lines: 1, rim: 1, refl: 1, warm: 0 };
   var TECH_MOBILE = { veil: .7, edge: .6, ink: .4, mark: .35, glow: .55, ceil: .5, ceilLines: .55, lines: .85, rim: .75, refl: .6, warm: .3 };
 
+  // Experimento "paredes de vidro" (mesma regra de js/intro.js).
+  var WALL_GLASS = /[?&]paredes=vidro(&|$)/.test(location.search);
+
   // Constantes da cena, injetadas no shader (mesma geometria usada pelo SVG da logo).
   function fragmentSource(g, touch) {
     function f(v) { return (+v).toFixed(3); }
@@ -307,7 +310,18 @@
       'precision highp float;',
       'uniform vec2 uView;uniform float uDpr,uVpY,uF,uCam,uW,uV;',
       'uniform float uMat,uArch,uCol,uLight,uStrip,uJoint,uAlpha,uTech,uBuild,uProg;',
-      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uMetal,uPanel,uGlow,uCeil,uRimX,uForm,uLineE,uStruct,uVault,uWallG,uArcB,uArcT,uTips;',
+      'uniform float uArcR,uArcG,uRim,uRimDown,uRimW,uRimX,uLineE,uArcB,uArcT,uTips;',
+      // Chaves fixas por aparelho (antes uniforms, sempre 0 ou 1 durante toda a abertura):
+      // como constantes de compilação, o compilador descarta o caminho que não é usado, e o
+      // shader fica menor e mais rápido de compilar e de desenhar. Mesmos valores de js/intro.js.
+      '#define uWallG ' + (WALL_GLASS ? '1.' : '0.'),
+      '#define uMetal ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uPanel ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uGlow ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uCeil ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uForm ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uStruct ' + (touch || WALL_GLASS ? '1.' : '0.'),
+      '#define uVault ' + (touch || WALL_GLASS ? '1.' : '0.'),
       'uniform sampler2D uPhoto,uDat,uNor;uniform vec4 uPh;uniform float uPhOk,uTexOk;',
       'uniform vec3 uBand[5];',
       'uniform vec4 uPB[' + 2 * PANEL_SLOTS + '],uPS[' + 2 * PANEL_SLOTS + '],uCB[' + PANEL_SLOTS + '],uCS[' + PANEL_SLOTS + '];',
@@ -1493,7 +1507,7 @@
 
     var names = ['uView', 'uDpr', 'uVpY', 'uF', 'uCam', 'uW', 'uV',
       'uMat', 'uArch', 'uCol', 'uLight', 'uStrip', 'uJoint', 'uAlpha', 'uTech', 'uBuild', 'uProg',
-      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uMetal', 'uPanel', 'uGlow', 'uCeil', 'uRimX', 'uForm', 'uLineE', 'uStruct', 'uVault', 'uWallG', 'uArcB', 'uArcT', 'uTips',
+      'uArcR', 'uArcG', 'uRim', 'uRimDown', 'uRimW', 'uRimX', 'uLineE', 'uArcB', 'uArcT', 'uTips',
       'uPhoto', 'uDat', 'uNor', 'uPh', 'uPhOk', 'uTexOk', 'uBand', 'uPB', 'uPS', 'uCB', 'uCS'];
     var u = {};
     for (var i = 0; i < names.length; i++) u[names[i]] = gl.getUniformLocation(program, names[i]);
@@ -1664,16 +1678,8 @@
       gl.uniform1f(u.uRim, s.rim || 0);
       gl.uniform1f(u.uRimDown, s.rimDown || 0);
       gl.uniform1f(u.uRimW, s.rimWide || 0);
-      gl.uniform1f(u.uMetal, s.metal || 0);
-      gl.uniform1f(u.uPanel, s.panel || 0);
-      gl.uniform1f(u.uGlow, s.glow || 0);
-      gl.uniform1f(u.uCeil, s.ceil || 0);
       gl.uniform1f(u.uRimX, s.rimExit || 0);
-      gl.uniform1f(u.uForm, s.form || 0);
       gl.uniform1f(u.uLineE, s.lineEarly || 0);
-      gl.uniform1f(u.uStruct, s.struct || 0);
-      gl.uniform1f(u.uVault, s.vault || 0);
-      gl.uniform1f(u.uWallG, s.wallGlass || 0);
       gl.uniform1f(u.uArcB, s.arcBand || 0);
       gl.uniform1f(u.uArcT, s.arcTint || 0);
       gl.uniform1f(u.uTips, s.tips || 0);
